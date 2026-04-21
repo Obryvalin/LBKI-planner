@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>IT Manager Planner</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: #f0f2f5; color: #333; }
+        .toolbar { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 13px; }
+        th { background: #fafafa; cursor: pointer; color: #666; text-transform: uppercase; font-size: 11px; }
+        tr:hover { background: #f9f9f9; }
+        .critical { background-color: #ffe3e3 !important; color: #d32f2f; }
+        
+        /* Модалки */
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); }
+        .modal-content { background: white; margin: 5% auto; padding: 25px; width: 500px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 12px; color: #555; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        
+        button { cursor: pointer; padding: 8px 16px; border-radius: 6px; border: 1px solid #ddd; background: white; transition: 0.2s; }
+        button:hover { background: #f0f0f0; border-color: #bbb; }
+        .btn-primary { background: #007bff; color: white; border: none; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-danger { color: #dc3545; border-color: #f5c6cb; }
+
+        .dict-list { max-height: 200px; overflow-y: auto; border: 1px solid #eee; margin-bottom: 15px; border-radius: 4px; }
+        .dict-item { padding: 8px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+        .dict-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+<div class="toolbar">
+    <button onclick="openProjectModal()">⚙️ Проект</button>
+    <button onclick="openDictionary('resource')">👥 Ресурсы</button>
+    <button onclick="openDictionary('epic')">🏔️ Эпики</button>
+    <button onclick="openDictionary('feature')">💡 Фичи</button>
+    <button onclick="openEditor('task')">➕ Новая задача</button>
+    <div style="flex-grow: 1"></div>
+    <button onclick="exportJSON()">💾 Сохранить JSON</button>
+    <button onclick="document.getElementById('importFile').click()">📂 Загрузить JSON</button>
+    <input type="file" id="importFile" style="display:none" onchange="importJSON(event)">
+    <button class="btn-primary" onclick="buildPlan()">⚡ Сформировать план</button>
+    <button onclick="generateGantt()">📊 Гант</button>
+</div>
+
+<div id="projectHeader" style="margin-bottom: 15px; font-weight: bold; color: #444;"></div>
+
+<div class="toolbar">
+    <input type="text" id="qSearch" placeholder="Поиск по названию..." oninput="renderTable()">
+    <select id="qRes" onchange="renderTable()"><option value="">Все ресурсы</option></select>
+    <select id="qStat" onchange="renderTable()">
+        <option value="">Все статусы</option>
+        <option>New</option><option>In Progress</option><option>Done</option>
+    </select>
+</div>
+
+<table id="mainTable">
+    <thead>
+        <tr>
+            <th onclick="resort('id')">ID</th>
+            <th onclick="resort('name')">Задача</th>
+            <th onclick="resort('status')">Статус</th>
+            <th onclick="resort('resourceId')">Ресурс</th>
+            <th>Длительность</th>
+            <th>План Старт</th>
+            <th>План Финиш</th>
+            <th onclick="resort('pri')">Приор.</th>
+            <th>Предшественники</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody id="taskBody"></tbody>
+</table>
+
+<div id="ganttBox" class="modal" onclick="this.style.display='none'">
+    <div class="modal-content" style="width: 90%;" onclick="event.stopPropagation()">
+        <pre class="mermaid" id="mermaidChart"></pre>
+    </div>
+</div>
+
+<!-- Модальное окно редактора (универсальное) -->
+<div id="modalEditor" class="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">Редактирование</h3>
+        <div id="modalFields"></div>
+        <div style="margin-top:20px; display:flex; justify-content: flex-end; gap: 10px;">
+            <button onclick="closeModal()">Отмена</button>
+            <button class="btn-primary" onclick="saveCurrent()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно справочников -->
+<div id="modalDict" class="modal">
+    <div class="modal-content">
+        <h3 id="dictTitle">Справочник</h3>
+        <div id="dictList" class="dict-list"></div>
+        <button class="btn-primary" id="btnAddNewInDict">+ Создать новый элемент</button>
+        <button onclick="closeDict()" style="margin-left: 10px;">Закрыть</button>
+    </div>
+</div>
+
+<script>
+    let data = {
+        project: { name: "Мой ИТ Проект", desc: "", start: "2024-01-01", end: "2024-12-31" },
+        tasks: [], resources: [], features: [], epics: []
+    };
+
+    let curType = '', curId = null;
+
+    // --- Управление словарями ---
+    function openDictionary(type) {
+        curType = type;
+        document.getElementById('dictTitle').innerText = {resource:'Ресурсы', epic:'Эпики', feature:'Фичи'}[type];
+        renderDictList();
+        document.getElementById('btnAddNewInDict').onclick = () => openEditor(type);
+        document.getElementById('modalDict').style.display = 'block';
+    }
+
+    function renderDictList() {
+        const list = data[curType + 's'];
+        document.getElementById('dictList').innerHTML = list.map(item => `
+            <div class="dict-item">
+                <span>${item.name} (ID: ${item.id})</span>
+                <div>
+                    <button onclick="openEditor('${curType}', ${item.id})">✏️</button>
+                    <button class="btn-danger" onclick="deleteItem('${curType}', ${item.id})">🗑️</button>
+                </div>
+            </div>
+        `).join('') || '<div style="padding:10px">Список пуст</div>';
+    }
+
+    function closeDict() { document.getElementById('modalDict').style.display = 'none'; }
+
+    // --- Редактор ---
+    function openEditor(type, id = null) {
+        curType = type; curId = id;
+        const item = id ? data[type + 's'].find(i => i.id === id) : {};
+        document.getElementById('modalTitle').innerText = (id ? 'Правка: ' : 'Создание: ') + type;
+        
+        let html = '';
+        if(type === 'resource') {
+            html = `<div class="form-group"><label>Имя</label><input id="e_name" value="${item.name||''}"></div>
+                    <div class="form-group"><label>Емкость (задач одновременно)</label><input type="number" id="e_cap" value="${item.cap||1}"></div>
+                    <div class="form-group"><label>Множитель длительности</label><input type="number" step="0.1" id="e_mult" value="${item.mult||1}"></div>`;
+        } else if(type === 'epic') {
+            html = `<div class="form-group"><label>Название</label><input id="e_name" value="${item.name||''}"></div>
+                    <div class="form-group"><label>Приоритет</label><input type="number" id="e_pri" value="${item.pri||1}"></div>`;
+        } else if(type === 'feature') {
+            html = `<div class="form-group"><label>Название</label><input id="e_name" value="${item.name||''}"></div>
+                    <div class="form-group"><label>Эпик</label><select id="e_epic">${data.epics.map(e=>`<option value="${e.id}" ${e.id==item.epicId?'selected':''}>${e.name}</option>`)}</select></div>
+                    <div class="form-group"><label>Приоритет</label><input type="number" id="e_pri" value="${item.pri||1}"></div>`;
+        } else if(type === 'task') {
+            html = `<div class="form-group"><label>Название</label><input id="e_name" value="${item.name||''}"></div>
+                    <div class="form-group"><label>Ресурс</label><select id="e_res">${data.resources.map(r=>`<option value="${r.id}" ${r.id==item.resourceId?'selected':''}>${r.name}</option>`)}</select></div>
+                    <div class="form-group"><label>Длительность (дн)</label><input type="number" id="e_dur" value="${item.duration||1}"></div>
+                    <div class="form-group"><label>Начать не ранее</label><input type="date" id="e_snr" value="${item.startNoEarlier||''}"></div>
+                    <div class="form-group"><label>Дедлайн</label><input type="date" id="e_dead" value="${item.deadline||''}"></div>
+                    <div class="form-group"><label>Фича</label><select id="e_feat">${data.features.map(f=>`<option value="${f.id}" ${f.id==item.featureId?'selected':''}>${f.name}</option>`)}</select></div>
+                    <div class="form-group"><label>Пререквизиты (ID через запятую)</label><input id="e_pre" value="${item.pre||''}"></div>
+                    <div class="form-group"><label>Приоритет задачи</label><input type="number" id="e_pri" value="${item.pri||1}"></div>
+                    <div class="form-group"><label>Статус</label><select id="e_stat"><option ${item.status=='New'?'selected':''}>New</option><option ${item.status=='In Progress'?'selected':''}>In Progress</option><option ${item.status=='Done'?'selected':''}>Done</option></select></div>`;
+        }
+        
+        document.getElementById('modalFields').innerHTML = html;
+        document.getElementById('modalEditor').style.display = 'block';
+    }
+
+    function openProjectModal() {
+        curType = 'project';
+        document.getElementById('modalTitle').innerText = 'Настройки проекта';
+        document.getElementById('modalFields').innerHTML = `
+            <div class="form-group"><label>Название</label><input id="p_name" value="${data.project.name}"></div>
+            <div class="form-group"><label>Начало</label><input type="date" id="p_start" value="${data.project.start}"></div>
+            <div class="form-group"><label>Конец</label><input type="date" id="p_end" value="${data.project.end}"></div>`;
+        document.getElementById('modalEditor').style.display = 'block';
+    }
+
+    function saveCurrent() {
+        if(curType === 'project') {
+            data.project.name = document.getElementById('p_name').value;
+            data.project.start = document.getElementById('p_start').value;
+            data.project.end = document.getElementById('p_end').value;
+        } else {
+            const list = data[curType + 's'];
+            let obj = curId ? list.find(i => i.id === curId) : { id: Date.now() };
+            obj.name = document.getElementById('e_name').value;
+            if(curType === 'resource') { obj.cap = +document.getElementById('e_cap').value; obj.mult = +document.getElementById('e_mult').value; }
+            if(curType === 'epic' || curType === 'feature') { obj.pri = +document.getElementById('e_pri').value; }
+            if(curType === 'feature') { obj.epicId = +document.getElementById('e_epic').value; }
+            if(curType === 'task') {
+                obj.resourceId = +document.getElementById('e_res').value;
+                obj.duration = +document.getElementById('e_dur').value;
+                obj.startNoEarlier = document.getElementById('e_snr').value;
+                obj.deadline = document.getElementById('e_dead').value;
+                obj.featureId = +document.getElementById('e_feat').value;
+                obj.pre = document.getElementById('e_pre').value;
+                obj.pri = +document.getElementById('e_pri').value;
+                obj.status = document.getElementById('e_stat').value;
+            }
+            if(!curId) list.push(obj);
+        }
+        closeModal();
+        if(curType !== 'task' && curType !== 'project') renderDictList();
+        syncUI();
+    }
+
+    function closeModal() { document.getElementById('modalEditor').style.display = 'none'; }
+
+    // --- Планирование ---
+    function buildPlan() {
+        const getW = (t) => {
+            const f = data.features.find(f => f.id === t.featureId) || {pri:0, epicId:0};
+            const e = data.epics.find(e => e.id === f.epicId) || {pri:0};
+            return (e.pri * 1000) + (f.pri * 100) + t.pri;
+        };
+
+        let sorted = [...data.tasks].sort((a,b) => getW(b) - getW(a));
+        let planned = [];
+        let resLog = {}; // {resId: {date: count}}
+
+        const addD = (s, n) => { let d = new Date(s); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; };
+
+        let safety = 0;
+        while(planned.length < sorted.length && safety < 500) {
+            for(let t of sorted) {
+                if(planned.find(p => p.id === t.id)) continue;
+                
+                let pres = t.pre ? t.pre.split(',').map(v => v.trim()) : [];
+                let ready = true;
+                let start = t.startNoEarlier || data.project.start;
+
+                for(let pid of pres) {
+                    let pTask = planned.find(p => String(p.id) === pid);
+                    if(!pTask) { ready = false; break; }
+                    if(pTask.endDate > start) start = pTask.endDate;
+                }
+
+                if(ready) {
+                    let r = data.resources.find(res => res.id === t.resourceId);
+                    let dur = Math.ceil(t.duration * (r ? r.mult : 1));
+                    let found = false;
+                    while(!found) {
+                        let ok = true;
+                        for(let i=0; i<dur; i++) {
+                            let day = addD(start, i);
+                            if(((resLog[t.resourceId]||{})[day]||0) >= (r?r.cap:1)) { ok = false; break; }
+                        }
+                        if(ok) {
+                            t.startDate = start; t.endDate = addD(start, dur);
+                            for(let i=0; i<dur; i++) {
+                                let day = addD(start, i);
+                                if(!resLog[t.resourceId]) resLog[t.resourceId] = {};
+                                resLog[t.resourceId][day] = (resLog[t.resourceId][day]||0) + 1;
+                            }
+                            planned.push(t); found = true;
+                        } else { start = addD(start, 1); }
+                    }
+                }
+            }
+            safety++;
+        }
+        renderTable();
+    }
+
+    // --- Вспомогательное ---
+    function syncUI() {
+        document.getElementById('qRes').innerHTML = '<option value="">Все ресурсы</option>' + data.resources.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+        document.getElementById('projectHeader').innerText = `${data.project.name} (${data.project.start} / ${data.project.end})`;
+        renderTable();
+    }
+
+    function renderTable() {
+        const body = document.getElementById('taskBody');
+        const s = document.getElementById('qSearch').value.toLowerCase();
+        const r = document.getElementById('qRes').value;
+        const st = document.getElementById('qStat').value;
+
+        body.innerHTML = data.tasks.filter(t => {
+            return (!s || t.name.toLowerCase().includes(s)) && (!r || t.resourceId == r) && (!st || t.status == st);
+        }).map(t => {
+            const res = data.resources.find(re => re.id === t.resourceId);
+            const isLate = t.deadline && t.endDate > t.deadline;
+            return `<tr class="${isLate?'critical':''}">
+                <td>${t.id}</td>
+                <td style="color:blue; cursor:pointer" onclick="openEditor('task', ${t.id})"><b>${t.name}</b></td>
+                <td>${t.status}</td>
+                <td>${res?res.name:'-'}</td>
+                <td>${t.duration}д</td>
+                <td>${t.startDate||'-'}</td>
+                <td>${t.endDate||'-'}</td>
+                <td>${t.pri}</td>
+                <td>${t.pre||'-'}</td>
+                <td><button onclick="deleteItem('task', ${t.id})">🗑️</button></td>
+            </tr>`;
+        }).join('');
+    }
+
+    function generateGantt() {
+        let code = "gantt\ndateFormat YYYY-MM-DD\naxisFormat %m-%d\n";
+        data.tasks.filter(t => t.startDate).forEach(t => { code += `section ${t.name}\n${t.name} :${t.startDate}, ${t.endDate}\n`; });
+        document.getElementById('ganttBox').style.display = 'block';
+        const chart = document.getElementById('mermaidChart');
+        chart.removeAttribute('data-processed');
+        chart.innerHTML = code;
+        mermaid.init(undefined, chart);
+    }
+
+    function deleteItem(type, id) {
+        if(!confirm('Удалить?')) return;
+        data[type + 's'] = data[type + 's'].filter(i => i.id !== id);
+        if(type !== 'task') renderDictList();
+        syncUI();
+    }
+
+    function exportJSON() {
+        const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'plan.json'; a.click();
+    }
+
+    function importJSON(e) {
+        const reader = new FileReader();
+        reader.onload = (ev) => { data = JSON.parse(ev.target.result); syncUI(); };
+        reader.readAsText(e.target.files[0]);
+    }
+
+    mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' });
+    syncUI();
+</script>
+</body>
+</html>

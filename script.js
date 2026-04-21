@@ -1,7 +1,7 @@
 /**
- * LBKI Backlog Planner - Core Script (v3)
- * Убран системный журнал, даты в ДД.ММ.ГГГГ в одну строку.
- * Все важные шаги логируются через console.log для отладки.
+ * LBKI Backlog Planner - Core Script (v4)
+ * Добавлен менеджер сущностей (Эпики/Фичи/Ресурсы) с возможностью редактирования и создания.
+ * Даты в формате ДД.ММ.ГГГГ. Системный журнал удалён.
  */
 
 // ==========================================
@@ -14,11 +14,7 @@
  */
 const initialState = () => ({
   project: { name: 'Новый проект', description: '', startDate: '2026-01-01', endDate: '2026-12-31' },
-  epics: [],
-  features: [],
-  resources: [],
-  tasks: [],
-  nextId: 1
+  epics: [], features: [], resources: [], tasks: [], nextId: 1
 });
 
 let state = initialState();
@@ -31,9 +27,10 @@ let state = initialState();
  */
 const updateState = (current, updates) => {
   console.log(`[STATE] Обновление: ${Object.keys(updates).join(', ')}`);
-  return { ...current, ...updates };
+  const newState = { ...current, ...updates };
+  saveToLocalStorage(); // Автосохранение при любом изменении
+  return newState;
 };
-
 // ==========================================
 // 2. FORMATTING HELPERS
 // ==========================================
@@ -50,16 +47,172 @@ const formatDMY = (dateStr) => {
 };
 
 // ==========================================
-// 3. UI & MODAL MANAGEMENT
+// 2.1 DATE & WEEKEND HELPERS
 // ==========================================
 
 /**
- * Управляет модальными окнами.
- * @param {string} type - Тип сущности ('task', 'epic', 'feature', 'resource', 'project')
- * @param {Object|null} data - Существующие данные или null для создания
+ * Проверяет, является ли дата выходным (Сб или Вс).
+ * @param {Date} date - Объект даты
+ * @returns {boolean} true, если выходной
+ */
+const isWeekend = (date) => {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+};
+
+/**
+ * Возвращает массив рабочих дат, начиная с startDate, длительностью duration дней.
+ * Пропускает субботу и воскресенье.
+ * @param {Date} startDate - Дата начала
+ * @param {number} duration - Количество рабочих дней
+ * @returns {Date[]} Массив рабочих дат
+ */
+const getWorkingDates = (startDate, duration) => {
+  const dates = [];
+  let current = new Date(startDate);
+  while (dates.length < duration) {
+    if (!isWeekend(current)) dates.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+};
+
+/**
+ * Сдвигает дату на следующий рабочий день.
+ * @param {Date} date - Исходная дата
+ * @returns {Date} Следующий рабочий день
+ */
+const advanceToNextWorkingDay = (date) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + 1);
+  while (isWeekend(next)) next.setDate(next.getDate() + 1);
+  return next;
+};
+
+// ==========================================
+// 2.2 LOCAL STORAGE & SESSION PROTECTION
+// ==========================================
+const STORAGE_KEY = 'lbki-backup-v4';
+
+/**
+ * Сохраняет текущее состояние в localStorage.
+ * @returns {void}
+ */
+const saveToLocalStorage = () => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    console.log('[STORAGE] ✅ Автосохранение выполнено');
+  } catch (e) {
+    console.error('[STORAGE] ❌ Ошибка localStorage:', e);
+  }
+};
+
+/**
+ * Загружает состояние из localStorage.
+ * @returns {Object|null} Восстановленное состояние или null
+ */
+const loadFromLocalStorage = () => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    console.error('[STORAGE] ❌ Ошибка парсинга localStorage:', e);
+    return null;
+  }
+};
+
+/**
+ * Очищает резервную копию из localStorage.
+ * @returns {void}
+ */
+const clearLocalStorage = () => {
+  localStorage.removeItem(STORAGE_KEY);
+  console.log('[STORAGE] 🗑️ Резервная копия очищена');
+};
+
+// ==========================================
+// 3. MODAL MANAGEMENT & ENTITY MANAGER
+// ==========================================
+
+/**
+ * Открывает менеджер сущности (список с возможностью редактирования/создания).
+ * @param {string} type - Тип сущности ('epic', 'feature', 'resource')
+ */
+const openManagerModal = (type) => {
+  console.log(`[MANAGER] Открыт менеджер: ${type}`);
+  const overlay = document.getElementById('modal-overlay');
+  const collectionKey = type + 's';
+  const items = state[collectionKey] || [];
+  
+  document.getElementById('modal-title').textContent = `Управление: ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+  
+  let listHtml = `<div class="manager-list">`;
+  if (items.length === 0) {
+    listHtml += `<p class="empty-msg">Созданные элементы отсутствуют. Нажмите кнопку ниже, чтобы добавить первый.</p>`;
+  } else {
+    items.forEach(item => {
+      let meta = '';
+      if (type === 'epic') meta = `Приоритет: ${item.priority || '-'}`;
+      if (type === 'feature') meta = `Эпик: ${state.epics.find(e => e.id == item.epicId)?.name || '-'} | Приоритет: ${item.priority || '-'}`;
+      if (type === 'resource') meta = `Емкость: ${item.capacity || 1} | Множитель: ${item.multiplier || 1}`;
+      
+      listHtml += `
+        <div class="manager-item">
+          <div class="item-info">
+            <span class="item-name">${item.name}</span>
+            <span class="item-meta">${meta}</span>
+          </div>
+          <div class="item-actions">
+            <button class="btn small btn-edit" data-id="${item.id}">✏️ Изменить</button>
+            <button class="btn small btn-delete" data-id="${item.id}">🗑️</button>
+          </div>
+        </div>`;
+    });
+  }
+  listHtml += `</div>
+    <button id="btn-add-new-${type}" class="btn primary" style="margin-top:15px;">➕ Создать новый</button>`;
+
+  document.getElementById('modal-form-container').innerHTML = listHtml;
+  overlay.classList.remove('hidden');
+
+  // Привязка событий
+  document.getElementById(`btn-add-new-${type}`).onclick = () => {
+    closeModal();
+    openModal(type, null);
+  };
+
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.onclick = () => {
+      const id = parseInt(btn.dataset.id);
+      const item = items.find(i => i.id === id);
+      closeModal();
+      setTimeout(() => openModal(type, item), 50);
+    };
+  });
+
+  document.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.onclick = () => {
+      const id = parseInt(btn.dataset.id);
+      console.log(`[MANAGER] Удаление ${type} ID: ${id}`);
+      let newState = { ...state };
+      newState[collectionKey] = newState[collectionKey].filter(i => i.id !== id);
+      state = updateState(state, newState);
+      renderTable();
+      openManagerModal(type); // Перерисовка менеджера
+    };
+  });
+  
+  document.getElementById('modal-close').onclick = closeModal;
+  document.getElementById('modal-cancel').onclick = closeModal;
+};
+
+/**
+ * Открывает модальное окно формы для создания/редактирования.
+ * @param {string} type - Тип сущности
+ * @param {Object|null} data - Данные или null для создания
  */
 const openModal = (type, data = null) => {
-  console.log(`[UI] Открыто модальное окно: ${type} ${data ? `(id: ${data.id})` : '(новый)'}`);
+  console.log(`[UI] Открыта форма: ${type} ${data ? `(id: ${data.id})` : '(новый)'}`);
   const overlay = document.getElementById('modal-overlay');
   const title = document.getElementById('modal-title');
   const formContainer = document.getElementById('modal-form-container');
@@ -75,46 +228,32 @@ const openModal = (type, data = null) => {
 
 /**
  * Генерирует HTML форму для модального окна.
- * @param {string} type - Тип сущности
- * @param {Object|null} data - Данные для заполнения
- * @returns {string} HTML строка
  */
 const generateFormHTML = (type, data) => {
   const fields = {
     project: [
-      { key: 'name', label: 'Название' },
-      { key: 'description', label: 'Описание', type: 'textarea', full: true },
-      { key: 'startDate', label: 'Дата начала', type: 'date' },
-      { key: 'endDate', label: 'Дата окончания', type: 'date', full: true }
+      { key: 'name', label: 'Название' }, { key: 'description', label: 'Описание', type: 'textarea', full: true },
+      { key: 'startDate', label: 'Дата начала', type: 'date' }, { key: 'endDate', label: 'Дата окончания', type: 'date', full: true }
     ],
     epic: [
-      { key: 'name', label: 'Наименование' },
-      { key: 'priority', label: 'Приоритет (1-10)', type: 'number' },
+      { key: 'name', label: 'Наименование' }, { key: 'priority', label: 'Приоритет (1-10)', type: 'number' },
       { key: 'description', label: 'Описание', type: 'textarea', full: true }
     ],
     feature: [
-      { key: 'name', label: 'Наименование' },
-      { key: 'epicId', label: 'Эпик', type: 'select', options: state.epics.map(e => ({v: e.id, t: e.name})) },
+      { key: 'name', label: 'Наименование' }, { key: 'epicId', label: 'Эпик', type: 'select', options: state.epics.map(e => ({v: e.id, t: e.name})) },
       { key: 'priority', label: 'Приоритет (1-10)', type: 'number' }
     ],
     resource: [
-      { key: 'name', label: 'Наименование' },
-      { key: 'capacity', label: 'Емкость (задач)', type: 'number', step: 1, min: 1 },
+      { key: 'name', label: 'Наименование' }, { key: 'capacity', label: 'Емкость (задач)', type: 'number', step: 1, min: 1 },
       { key: 'multiplier', label: 'Множитель длительности', type: 'number', step: 0.1, min: 0.1 }
     ],
     task: [
-      { key: 'name', label: 'Наименование', full: true },
-      { key: 'epicId', label: 'Эпик', type: 'select', options: state.epics.map(e => ({v: e.id, t: e.name})) },
-      { key: 'featureId', label: 'Фича', type: 'select', options: state.features.map(f => ({v: f.id, t: f.name})) },
-      { key: 'resourceId', label: 'Ресурс', type: 'select', options: state.resources.map(r => ({v: r.id, t: r.name})) },
-      { key: 'duration', label: 'Длительность (дней)', type: 'number', min: 1 },
-      { key: 'priority', label: 'Приоритет (1-10)', type: 'number', min: 1, max: 10 },
-      { key: 'startNoEarlier', label: 'Начало не ранее', type: 'date' },
-      { key: 'finishNoLater', label: 'Окончание не позднее', type: 'date' },
-      { key: 'prerequisites', label: 'Пререквизиты (ID через запятую)', full: true },
-      { key: 'status', label: 'Статус', type: 'select', options: [
-        {v: 'new', t: 'Новая'}, {v: 'planned', t: 'Запланирована'},
-        {v: 'in-progress', t: 'В работе'}, {v: 'done', t: 'Готово'}
+      { key: 'name', label: 'Наименование', full: true }, { key: 'epicId', label: 'Эпик', type: 'select', options: state.epics.map(e => ({v: e.id, t: e.name})) },
+      { key: 'featureId', label: 'Фича', type: 'select', options: state.features.map(f => ({v: f.id, t: f.name})) }, { key: 'resourceId', label: 'Ресурс', type: 'select', options: state.resources.map(r => ({v: r.id, t: r.name})) },
+      { key: 'duration', label: 'Длительность (дней)', type: 'number', min: 1 }, { key: 'priority', label: 'Приоритет (1-10)', type: 'number', min: 1, max: 10 },
+      { key: 'startNoEarlier', label: 'Начало не ранее', type: 'date' }, { key: 'finishNoLater', label: 'Окончание не позднее', type: 'date' },
+      { key: 'prerequisites', label: 'Пререквизиты (ID через запятую)', full: true }, { key: 'status', label: 'Статус', type: 'select', options: [
+        {v: 'new', t: 'Новая'}, {v: 'planned', t: 'Запланирована'}, {v: 'in-progress', t: 'В работе'}, {v: 'done', t: 'Готово'}
       ]}
     ]
   };
@@ -136,9 +275,7 @@ const generateFormHTML = (type, data) => {
 };
 
 /**
- * Сохраняет данные из модального окна в состояние.
- * @param {string} type - Тип сущности
- * @param {Object|null} oldData - Старые данные
+ * Сохраняет данные из модального окна.
  */
 const saveModalData = (type, oldData) => {
   const collect = () => {
@@ -183,11 +320,10 @@ const saveModalData = (type, oldData) => {
 const closeModal = () => document.getElementById('modal-overlay').classList.add('hidden');
 
 // ==========================================
-// 4. TABLE RENDERING (Dates DMY, 1 line)
+// 4. TABLE RENDERING
 // ==========================================
-
 /**
- * Отрисовывает таблицу задач с учетом сортировки и фильтрации.
+ * Отрисовывает таблицу задач без кнопки действий. Названия задач кликабельны.
  */
 const renderTable = () => {
   console.log('[RENDER] Перерисовка таблицы...');
@@ -197,7 +333,6 @@ const renderTable = () => {
   const filterResEl = document.getElementById('filter-resource');
   const filterResId = filterResEl.value;
 
-  // Динамическое обновление списка ресурсов в фильтре
   const currentResOptions = Array.from(filterResEl.options).map(o => String(o.value));
   state.resources.forEach(r => {
     if (!currentResOptions.includes(String(r.id))) {
@@ -238,7 +373,7 @@ const renderTable = () => {
     return `
       <tr class="${cls}">
         <td>${task.id}</td>
-        <td>${task.name}</td>
+        <td class="task-name-cell" data-task-id="${task.id}">${task.name}</td>
         <td>${task.status}</td>
         <td>${res}</td>
         <td>${task.duration}</td>
@@ -249,9 +384,8 @@ const renderTable = () => {
         <td>${epic}</td>
         <td>${feat}</td>
         <td>${task.priority}</td>
-        <td><button class="btn small" onclick="openModal('task', state.tasks.find(t=>t.id===${task.id}))">✏️</button></td>
       </tr>`;
-  }).join('') || '<tr><td colspan="13" style="text-align:center;padding:20px;">Нет задач</td></tr>';
+  }).join('') || '<tr><td colspan="12" style="text-align:center;padding:20px;">Нет задач</td></tr>';
 };
 
 document.getElementById('tasks-table').querySelector('thead').addEventListener('click', (e) => {
@@ -266,14 +400,14 @@ document.getElementById('tasks-table').querySelector('thead').addEventListener('
 });
 
 // ==========================================
-// 5. PLANNING ENGINE
+// 5. PLANNING ENGINE (Weekend-Aware)
 // ==========================================
 
 /**
- * Формирует Waterfall дорожную карту.
+ * Формирует Waterfall дорожную карту с учётом рабочих дней (Пн-Пт).
  */
 const generatePlan = () => {
-  console.log('[PLAN] 🚀 Запуск планировщика Waterfall...');
+  console.log('[PLAN] 🚀 Запуск планировщика (рабочие дни Пн-Пт)...');
   if (state.tasks.length === 0) { console.warn('[PLAN] Нет задач.'); return; }
 
   const sortedTasks = resolveTaskOrder(state.tasks, state.epics, state.features);
@@ -288,25 +422,38 @@ const generatePlan = () => {
     const effDuration = Math.ceil((task.duration || 1) * (res.multiplier || 1));
     let candidate = new Date(task.startNoEarlier || projectStart);
     
+    // Если startNoEarlier выпадает на выходной, сдвигаем на понедельник
+    while (isWeekend(candidate)) candidate.setDate(candidate.getDate() + 1);
+    
     const prereqEnds = (task.prerequisites || [])
       .map(pid => state.tasks.find(t => t.id === pid)?.actualEndDate)
       .filter(Boolean).map(d => new Date(d));
+      
     if (prereqEnds.length) {
       const latest = new Date(Math.max(...prereqEnds.map(d => d.getTime())));
-      if (latest >= candidate) candidate = new Date(latest.getTime() + 86400000);
+      const nextAvail = advanceToNextWorkingDay(latest);
+      if (nextAvail > candidate) {
+        console.log(`[PLAN] 📅 Задача ${task.id}: сдвиг на ${formatDMY(nextAvail)} из-за пререквизитов (пропуск выходных)`);
+        candidate = nextAvail;
+      }
     }
 
     const finalStart = findAvailableSlot(resourceCalendar, task.resourceId, candidate, effDuration, res.capacity || 1);
-    const finalEnd = new Date(finalStart.getTime() + (effDuration - 1) * 86400000);
+    const workingDays = getWorkingDates(finalStart, effDuration);
+    const finalEnd = workingDays[workingDays.length - 1];
+    
     allocateResource(resourceCalendar, task.resourceId, finalStart, effDuration);
 
     const deadline = task.finishNoLater ? new Date(task.finishNoLater) : null;
     const isViolated = deadline && finalEnd > deadline;
-    console.log(`[PLAN] ✅ ${task.id}: ${formatDMY(finalStart)} → ${formatDMY(finalEnd)} ${isViolated ? '⚠️ СРЫВ' : ''}`);
+    console.log(`[PLAN] ✅ ${task.id}: ${formatDMY(finalStart)} → ${formatDMY(finalEnd)} (${effDuration} р.д.) ${isViolated ? '⚠️ СРЫВ' : ''}`);
     
     return {
-      ...task, actualStartDate: finalStart.toISOString().split('T')[0], actualEndDate: finalEnd.toISOString().split('T')[0],
-      status: isViolated ? 'risk' : (task.status === 'new' ? 'planned' : task.status), isViolated
+      ...task, 
+      actualStartDate: finalStart.toISOString().split('T')[0], 
+      actualEndDate: finalEnd.toISOString().split('T')[0],
+      status: isViolated ? 'risk' : (task.status === 'new' ? 'planned' : task.status), 
+      isViolated
     };
   });
 
@@ -316,32 +463,34 @@ const generatePlan = () => {
 };
 
 /**
- * Находит первый доступный временной слот для ресурса.
+ * Находит первый доступный временной слот для ресурса (только рабочие дни).
  */
 const findAvailableSlot = (cal, resId, start, duration, capacity) => {
   let cur = new Date(start);
-  for (let attempts = 0; attempts < 2000; attempts++) {
-    let fits = true;
-    for (let d = 0; d < duration; d++) {
-      let check = new Date(cur.getTime() + d * 86400000);
-      if ((cal[resId]?.[check.toISOString().split('T')[0]] || 0) >= capacity) { fits = false; break; }
-    }
+  // Гарантируем, что поиск начинается с рабочего дня
+  while (isWeekend(cur)) cur.setDate(cur.getDate() + 1);
+
+  for (let attempts = 0; attempts < 3000; attempts++) {
+    const checkDates = getWorkingDates(cur, duration);
+    const fits = checkDates.every(d => (cal[resId]?.[d.toISOString().split('T')[0]] || 0) < capacity);
     if (fits) return cur;
-    cur.setDate(cur.getDate() + 1);
+    // Сдвигаем на следующий рабочий день
+    do { cur.setDate(cur.getDate() + 1); } while (isWeekend(cur));
   }
+  console.warn(`[PLAN] ⚠️ Ресурс ${resId} перегружен, задача назначена на ${formatDMY(cur)}`);
   return cur;
 };
 
 /**
- * Выделяет дни в календаре ресурса.
+ * Выделяет дни в календаре ресурса (только рабочие дни).
  */
 const allocateResource = (cal, resId, start, duration) => {
   if (!cal[resId]) cal[resId] = {};
-  for (let d = 0; d < duration; d++) {
-    let slot = new Date(start.getTime() + d * 86400000);
-    let key = slot.toISOString().split('T')[0];
+  const dates = getWorkingDates(start, duration);
+  dates.forEach(d => {
+    const key = d.toISOString().split('T')[0];
     cal[resId][key] = (cal[resId][key] || 0) + 1;
-  }
+  });
 };
 
 /**
@@ -360,52 +509,101 @@ const resolveTaskOrder = (tasks, epics, features) => {
     const u = q.shift(); res.push(u);
     adj[u].forEach(v => { if(--inDeg[v]===0) q.push(v); });
   }
-  console.log(`[PLAN] 📊 Отсортировано ${res.length} задач (топология + приоритет)`);
+  console.log(`[PLAN] 📊 Отсортировано ${res.length} задач`);
   return res.map(id => tasks.find(t=>t.id===id));
 };
 
 // ==========================================
-// 6. GANTT CHART (Mermaid)
+// 6. GANTT CHART
 // ==========================================
 const sanitizeForMermaid = (str) => String(str || '').replace(/[:\n\r",']/g, ' ').substring(0, 50).trim();
 
+/**
+ * Генерирует диаграмму Ганта с иерархией (Эпик/Фича) и цветовым кодированием статусов.
+ * @returns {Promise<void>}
+ */
 const generateGanttChart = async () => {
-  console.log('[GANTT] 📊 Генерация диаграммы...');
+  console.log('[GANTT] 📊 Генерация диаграммы (Epic+Feature, Status)...');
   const plannedTasks = state.tasks.filter(t => t.actualStartDate && t.actualStartDate !== '-');
   if (plannedTasks.length === 0) { console.warn('[GANTT] Нет задач с датами.'); return; }
 
   let syntax = `gantt\n    title LBKI Roadmap\n    dateFormat YYYY-MM-DD\n    axisFormat %d.%m\n    excludes weekends\n`;
+
+  // 1. Группировка по Эпикам
   const epicGroups = {};
   plannedTasks.forEach(t => {
-    const eId = t.epicId || 'none';
-    if (!epicGroups[eId]) epicGroups[eId] = [];
-    epicGroups[eId].push(t);
+      const eId = t.epicId || 'none';
+      if (!epicGroups[eId]) epicGroups[eId] = [];
+      epicGroups[eId].push(t);
   });
 
+  // 2. Итерация по Эпикам и вложенная группировка по Фичам
   for (const [epicId, tasks] of Object.entries(epicGroups)) {
-    const name = epicId === 'none' ? 'Общие задачи' : (state.epics.find(e => e.id == epicId)?.name || `Эпик ${epicId}`);
-    syntax += `    section ${sanitizeForMermaid(name)}\n`;
-    tasks.forEach(t => syntax += `    ${sanitizeForMermaid(t.name)} :task_${t.id}, ${t.actualStartDate}, ${t.actualEndDate}\n`);
+      const featureGroups = {};
+      tasks.forEach(t => {
+          const fId = t.featureId || 'none';
+          if (!featureGroups[fId]) featureGroups[fId] = [];
+          featureGroups[fId].push(t);
+      });
+
+      for (const [featureId, featTasks] of Object.entries(featureGroups)) {
+          // Формируем имя секции: "Эпик / Фича"
+          const epicName = epicId === 'none' ? 'Без Эпика' : (state.epics.find(e => e.id == epicId)?.name || 'Unknown Epic');
+          const featName = featureId === 'none' ? 'Общие задачи' : (state.features.find(f => f.id == featureId)?.name || 'Unknown Feature');
+          const sectionTitle = `${epicName} / ${featName}`;
+          
+          syntax += `    section ${sanitizeForMermaid(sectionTitle)}\n`;
+
+          featTasks.forEach(t => {
+              // Определяем модификаторы статуса
+              // :crit - красный (срыв сроков)
+              // :done - серый (завершено)
+              // :active - синий (в работе)
+              let mods = [];
+              
+              if (t.isViolated) mods.push('crit');
+              if (t.status === 'done') mods.push('done');
+              else if (t.status === 'in-progress') mods.push('active');
+              
+              // Формируем строку модификаторов (e.g., "crit,active,")
+              const modStr = mods.length > 0 ? mods.join(',') + ',' : '';
+              
+              // Синтаксис: Задача :modifiers,id,start,end
+              syntax += `    ${sanitizeForMermaid(t.name)} :${modStr}task_${t.id}, ${t.actualStartDate}, ${t.actualEndDate}\n`;
+          });
+      }
   }
 
-  const container = document.getElementById('gantt-output');
+  // Отрисовка
   document.getElementById('gantt-card').classList.remove('hidden');
-  container.innerHTML = '⏳ Рендеринг...';
-
+  document.getElementById('gantt-output').innerHTML = '⏳ Рендеринг...';
   try {
     if (!window._mermaidInitialized) { mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'neutral' }); window._mermaidInitialized = true; }
     const { svg } = await mermaid.render(`gantt-${Date.now()}`, syntax);
-    container.innerHTML = svg;
-    console.log('[GANTT] ✅ Диаграмма отрисована.');
+    document.getElementById('gantt-output').innerHTML = svg;
+    console.log('[GANTT] ✅ Отрисовано.');
   } catch (err) {
     console.error('[GANTT] ❌ Ошибка:', err);
-    container.innerHTML = `<div style="color:red; padding:10px;">Ошибка рендеринга. Проверьте консоль.</div>`;
+    document.getElementById('gantt-output').innerHTML = `<div style="color:red; padding:10px;">Ошибка рендеринга. Проверьте консоль.</div>`;
   }
 };
 
 const copyMermaidSyntax = async () => {
-  const rawText = state.tasks.filter(t => t.actualStartDate !== '-').map(t => `${sanitizeForMermaid(t.name)} :task_${t.id}, ${t.actualStartDate}, ${t.actualEndDate}`).join('\n');
+  // Простая генерация с модификаторами для копирования
+  const rawText = state.tasks
+    .filter(t => t.actualStartDate !== '-')
+    .map(t => {
+        let mods = [];
+        if (t.isViolated) mods.push('crit');
+        if (t.status === 'done') mods.push('done');
+        else if (t.status === 'in-progress') mods.push('active');
+        const modStr = mods.length > 0 ? mods.join(',') + ',' : '';
+        return `${sanitizeForMermaid(t.name)} :${modStr}task_${t.id}, ${t.actualStartDate}, ${t.actualEndDate}`;
+    })
+    .join('\n');
+    
   const fullSyntax = `gantt\ntitle LBKI Plan\ndateFormat YYYY-MM-DD\naxisFormat %d.%m\n${rawText}`;
+  
   try {
     await navigator.clipboard.writeText(fullSyntax);
     console.log('[GANTT] 📋 Код скопирован.');
@@ -434,12 +632,30 @@ const loadJSON = (file) => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('[INIT] 🟢 LBKI Planner v3 запущен.');
+  console.log('[INIT] 🟢 LBKI Planner v5 запущен.');
+
+  // 🔹 Восстановление сессии из localStorage
+  const saved = loadFromLocalStorage();
+  const hasData = saved && (saved.tasks.length > 0 || saved.epics.length > 0 || saved.resources.length > 0);
+  
+  if (hasData) {
+    if (confirm('💾 Найдена сохранённая сессия. Восстановить предыдущие данные?')) {
+      state = { ...initialState(), ...saved };
+      console.log('[INIT] 📥 Данные успешно восстановлены из localStorage.');
+    } else {
+      clearLocalStorage();
+      console.log('[INIT] 🗑️ Пользователь отклонил восстановление. Начинаем с чистого листа.');
+    }
+  }
+
+  // 🔹 Привязка кнопок (менеджеры, задачи, проект)
+  document.getElementById('btn-manage-epic').onclick = () => openManagerModal('epic');
+  document.getElementById('btn-manage-feature').onclick = () => openManagerModal('feature');
+  document.getElementById('btn-manage-resource').onclick = () => openManagerModal('resource');
   document.getElementById('btn-add-task').onclick = () => openModal('task');
-  document.getElementById('btn-add-epic').onclick = () => openModal('epic');
-  document.getElementById('btn-add-feature').onclick = () => openModal('feature');
-  document.getElementById('btn-add-resource').onclick = () => openModal('resource');
   document.getElementById('btn-project').onclick = () => openModal('project', state.project);
+
+  // 🔹 План, экспорт и Gantt
   document.getElementById('btn-generate').onclick = generatePlan;
   document.getElementById('btn-gantt').onclick = generateGanttChart;
   document.getElementById('btn-copy-mermaid').onclick = copyMermaidSyntax;
@@ -447,5 +663,28 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-save').onclick = saveJSON;
   document.getElementById('btn-load').onclick = () => document.getElementById('file-input').click();
   document.getElementById('file-input').onchange = e => loadJSON(e.target.files[0]);
+
+  // 🔹 Делегирование кликов по задачам
+  document.getElementById('tasks-body').addEventListener('click', (e) => {
+    const cell = e.target.closest('.task-name-cell');
+    if (!cell) return;
+    const taskId = parseInt(cell.dataset.taskId);
+    const task = state.tasks.find(t => t.id === taskId);
+    if (task) {
+      console.log(`[UI] Клик по задаче ID: ${taskId}. Открытие редактора.`);
+      openModal('task', task);
+    }
+  });
+
+  // 🔹 Защита от случайного закрытия/обновления страницы
+  window.addEventListener('beforeunload', (e) => {
+    // Данные уже сохранены в localStorage, но браузер покажет стандартное предупреждение
+    // Это даёт пользователю секунду на отмену действия
+    e.preventDefault();
+    e.returnValue = ''; 
+    console.log('[PAGE] ⚠️ Сработало событие beforeunload. Данные сохранены.');
+  });
+
+  // Первичная отрисовка
   renderTable();
 });
