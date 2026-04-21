@@ -1,52 +1,72 @@
 /**
- * LBKI Backlog Planner - Core Script (Fixed v2)
- * Исправления: статус в модалке, многоколоночный поиск, фильтр по ресурсу.
+ * LBKI Backlog Planner - Core Script (v3)
+ * Убран системный журнал, даты в ДД.ММ.ГГГГ в одну строку.
+ * Все важные шаги логируются через console.log для отладки.
  */
 
 // ==========================================
 // 1. STATE MANAGEMENT (Immutable)
 // ==========================================
+
+/**
+ * Инициализирует начальное состояние приложения.
+ * @returns {Object} Чистое состояние приложения
+ */
 const initialState = () => ({
   project: { name: 'Новый проект', description: '', startDate: '2026-01-01', endDate: '2026-12-31' },
-  epics: [], features: [], resources: [], tasks: [], logs: [], nextId: 1
+  epics: [],
+  features: [],
+  resources: [],
+  tasks: [],
+  nextId: 1
 });
 
 let state = initialState();
 
+/**
+ * Безопасное обновление состояния. Возвращает новый объект.
+ * @param {Object} current - Текущее состояние
+ * @param {Object} updates - Частичное обновление
+ * @returns {Object} Новое состояние
+ */
 const updateState = (current, updates) => {
   console.log(`[STATE] Обновление: ${Object.keys(updates).join(', ')}`);
-  addLog(`Обновление состояния: ${Object.keys(updates).join(', ')}`);
   return { ...current, ...updates };
 };
 
 // ==========================================
-// 2. LOGGING SYSTEM
+// 2. FORMATTING HELPERS
 // ==========================================
-const addLog = (message) => {
-  const entry = { time: new Date().toLocaleTimeString(), message };
-  state.logs = [...state.logs, entry];
-  console.log(`[LOG ${entry.time}]`, message);
-  renderLogs();
-};
 
-const renderLogs = () => {
-  const container = document.getElementById('log-content');
-  if (!container) return;
-  container.innerHTML = state.logs.map(l => 
-    `<div class="log-entry"><span class="log-time">${l.time}</span> ${l.message}</div>`
-  ).join('');
-  container.scrollTop = container.scrollHeight;
+/**
+ * Форматирует дату из ISO (YYYY-MM-DD) в DD.MM.YYYY.
+ * @param {string|null|undefined} dateStr - Строка даты
+ * @returns {string} Отформатированная дата или "-"
+ */
+const formatDMY = (dateStr) => {
+  if (!dateStr || dateStr === '-') return '-';
+  const parts = String(dateStr).split('-');
+  return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : dateStr;
 };
 
 // ==========================================
-// 3. UI & MODAL MANAGEMENT (FIXED STATUS)
+// 3. UI & MODAL MANAGEMENT
 // ==========================================
+
+/**
+ * Управляет модальными окнами.
+ * @param {string} type - Тип сущности ('task', 'epic', 'feature', 'resource', 'project')
+ * @param {Object|null} data - Существующие данные или null для создания
+ */
 const openModal = (type, data = null) => {
-  addLog(`Открыто модальное окно: ${type} ${data ? `(id: ${data.id})` : '(новый)'}`);
+  console.log(`[UI] Открыто модальное окно: ${type} ${data ? `(id: ${data.id})` : '(новый)'}`);
   const overlay = document.getElementById('modal-overlay');
-  document.getElementById('modal-title').textContent = data ? `Редактировать ${type}` : `Создать ${type}`;
-  document.getElementById('modal-form-container').innerHTML = generateFormHTML(type, data);
+  const title = document.getElementById('modal-title');
+  const formContainer = document.getElementById('modal-form-container');
+  
   overlay.classList.remove('hidden');
+  title.textContent = data ? `Редактировать ${type}` : `Создать ${type}`;
+  formContainer.innerHTML = generateFormHTML(type, data);
   
   document.getElementById('modal-save').onclick = () => saveModalData(type, data);
   document.getElementById('modal-close').onclick = closeModal;
@@ -54,7 +74,10 @@ const openModal = (type, data = null) => {
 };
 
 /**
- * Генерирует HTML форму. ИСПРАВЛЕНО: корректная обработка select options.
+ * Генерирует HTML форму для модального окна.
+ * @param {string} type - Тип сущности
+ * @param {Object|null} data - Данные для заполнения
+ * @returns {string} HTML строка
  */
 const generateFormHTML = (type, data) => {
   const fields = {
@@ -112,6 +135,11 @@ const generateFormHTML = (type, data) => {
   }).join('');
 };
 
+/**
+ * Сохраняет данные из модального окна в состояние.
+ * @param {string} type - Тип сущности
+ * @param {Object|null} oldData - Старые данные
+ */
 const saveModalData = (type, oldData) => {
   const collect = () => {
     const res = oldData ? { ...oldData } : { id: state.nextId++ };
@@ -133,7 +161,7 @@ const saveModalData = (type, oldData) => {
   };
 
   const newData = collect();
-  addLog(`💾 Сохранение ${type} ID: ${newData.id}`);
+  console.log(`[STATE] Сохранение ${type} ID: ${newData.id}`);
   
   let newState = { ...state };
   if (type === 'project') newState.project = newData;
@@ -149,12 +177,20 @@ const saveModalData = (type, oldData) => {
   renderTable();
 };
 
+/**
+ * Закрывает модальное окно.
+ */
 const closeModal = () => document.getElementById('modal-overlay').classList.add('hidden');
 
 // ==========================================
-// 4. TABLE RENDERING (FIXED SEARCH & RESOURCE FILTER)
+// 4. TABLE RENDERING (Dates DMY, 1 line)
 // ==========================================
+
+/**
+ * Отрисовывает таблицу задач с учетом сортировки и фильтрации.
+ */
 const renderTable = () => {
+  console.log('[RENDER] Перерисовка таблицы...');
   const tbody = document.getElementById('tasks-body');
   const filterText = document.getElementById('filter-search').value.toLowerCase().trim();
   const filterStatus = document.getElementById('filter-status').value;
@@ -171,7 +207,6 @@ const renderTable = () => {
     }
   });
 
-  // Pure filter function
   const matches = (task) => {
     if (filterStatus && task.status !== filterStatus) return false;
     if (filterResId && String(task.resourceId) !== filterResId) return false;
@@ -179,11 +214,7 @@ const renderTable = () => {
       const epic = state.epics.find(e => e.id == task.epicId)?.name || '';
       const feat = state.features.find(f => f.id == task.featureId)?.name || '';
       const res = state.resources.find(r => r.id == task.resourceId)?.name || '';
-      // Явный поиск по всем ключевым полям
-      const searchable = [
-        task.id, task.name, task.status, res, epic, feat, 
-        task.priority, task.actualStartDate, task.actualEndDate, task.duration
-      ].join(' ').toLowerCase();
+      const searchable = `${task.id} ${task.name} ${task.status} ${res} ${epic} ${feat} ${task.priority}`.toLowerCase();
       return searchable.includes(filterText);
     }
     return true;
@@ -206,16 +237,23 @@ const renderTable = () => {
     const cls = task.isViolated ? 'violation' : '';
     return `
       <tr class="${cls}">
-        <td>${task.id}</td><td>${task.name}</td><td>${task.status}</td><td>${res}</td>
-        <td>${task.duration}</td><td>${task.startNoEarlier || '-'}</td><td>${task.finishNoLater || '-'}</td>
-        <td>${task.actualStartDate || '-'}</td><td>${task.actualEndDate || '-'}</td>
-        <td>${epic}</td><td>${feat}</td><td>${task.priority}</td>
+        <td>${task.id}</td>
+        <td>${task.name}</td>
+        <td>${task.status}</td>
+        <td>${res}</td>
+        <td>${task.duration}</td>
+        <td>${formatDMY(task.startNoEarlier)}</td>
+        <td>${formatDMY(task.finishNoLater)}</td>
+        <td>${formatDMY(task.actualStartDate)}</td>
+        <td>${formatDMY(task.actualEndDate)}</td>
+        <td>${epic}</td>
+        <td>${feat}</td>
+        <td>${task.priority}</td>
         <td><button class="btn small" onclick="openModal('task', state.tasks.find(t=>t.id===${task.id}))">✏️</button></td>
       </tr>`;
   }).join('') || '<tr><td colspan="13" style="text-align:center;padding:20px;">Нет задач</td></tr>';
 };
 
-// Event Listeners
 document.getElementById('tasks-table').querySelector('thead').addEventListener('click', (e) => {
   if (e.target.tagName === 'TH' && e.target.dataset.sort) {
     window.currentSort = { key: e.target.dataset.sort, asc: window.currentSort?.key === e.target.dataset.sort ? !window.currentSort.asc : true };
@@ -230,9 +268,13 @@ document.getElementById('tasks-table').querySelector('thead').addEventListener('
 // ==========================================
 // 5. PLANNING ENGINE
 // ==========================================
+
+/**
+ * Формирует Waterfall дорожную карту.
+ */
 const generatePlan = () => {
-  addLog('🚀 Запуск планировщика Waterfall...');
-  if (state.tasks.length === 0) { addLog('⚠️ Нет задач для планирования.'); return; }
+  console.log('[PLAN] 🚀 Запуск планировщика Waterfall...');
+  if (state.tasks.length === 0) { console.warn('[PLAN] Нет задач.'); return; }
 
   const sortedTasks = resolveTaskOrder(state.tasks, state.epics, state.features);
   let resourceCalendar = {};
@@ -246,7 +288,6 @@ const generatePlan = () => {
     const effDuration = Math.ceil((task.duration || 1) * (res.multiplier || 1));
     let candidate = new Date(task.startNoEarlier || projectStart);
     
-    // Учет пререквизитов
     const prereqEnds = (task.prerequisites || [])
       .map(pid => state.tasks.find(t => t.id === pid)?.actualEndDate)
       .filter(Boolean).map(d => new Date(d));
@@ -261,19 +302,22 @@ const generatePlan = () => {
 
     const deadline = task.finishNoLater ? new Date(task.finishNoLater) : null;
     const isViolated = deadline && finalEnd > deadline;
-    addLog(`✅ ${task.id}: ${formatDate(finalStart)} → ${formatDate(finalEnd)} ${isViolated ? '⚠️ СРЫВ' : ''}`);
+    console.log(`[PLAN] ✅ ${task.id}: ${formatDMY(finalStart)} → ${formatDMY(finalEnd)} ${isViolated ? '⚠️ СРЫВ' : ''}`);
     
     return {
-      ...task, actualStartDate: formatDate(finalStart), actualEndDate: formatDate(finalEnd),
+      ...task, actualStartDate: finalStart.toISOString().split('T')[0], actualEndDate: finalEnd.toISOString().split('T')[0],
       status: isViolated ? 'risk' : (task.status === 'new' ? 'planned' : task.status), isViolated
     };
   });
 
   state = updateState(state, { tasks: plannedTasks });
   renderTable();
-  addLog('🏁 Планирование завершено.');
+  console.log('[PLAN] 🏁 Планирование завершено.');
 };
 
+/**
+ * Находит первый доступный временной слот для ресурса.
+ */
 const findAvailableSlot = (cal, resId, start, duration, capacity) => {
   let cur = new Date(start);
   for (let attempts = 0; attempts < 2000; attempts++) {
@@ -288,6 +332,9 @@ const findAvailableSlot = (cal, resId, start, duration, capacity) => {
   return cur;
 };
 
+/**
+ * Выделяет дни в календаре ресурса.
+ */
 const allocateResource = (cal, resId, start, duration) => {
   if (!cal[resId]) cal[resId] = {};
   for (let d = 0; d < duration; d++) {
@@ -297,6 +344,9 @@ const allocateResource = (cal, resId, start, duration) => {
   }
 };
 
+/**
+ * Сортирует задачи по зависимостям и composite priority.
+ */
 const resolveTaskOrder = (tasks, epics, features) => {
   const getScore = t => (epics.find(e=>e.id==t.epicId)?.priority||5)*100 + (features.find(f=>f.id==t.featureId)?.priority||5)*10 + (t.priority||5);
   const inDeg = {}, adj = {};
@@ -310,69 +360,21 @@ const resolveTaskOrder = (tasks, epics, features) => {
     const u = q.shift(); res.push(u);
     adj[u].forEach(v => { if(--inDeg[v]===0) q.push(v); });
   }
+  console.log(`[PLAN] 📊 Отсортировано ${res.length} задач (топология + приоритет)`);
   return res.map(id => tasks.find(t=>t.id===id));
 };
 
-const formatDate = d => d.toISOString().split('T')[0];
-
 // ==========================================
-// 6. SAVE / LOAD & INIT
+// 6. GANTT CHART (Mermaid)
 // ==========================================
-const saveJSON = () => {
-  addLog('💾 Экспорт JSON...');
-  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `lbki-plan-${formatDate(new Date())}.json`; a.click();
-};
-
-const loadJSON = (file) => {
-  if (!file) return;
-  addLog('📂 Импорт JSON...');
-  const reader = new FileReader();
-  reader.onload = e => {
-    try { state = {...initialState(), ...JSON.parse(e.target.result)}; addLog('✅ Загружено.'); renderTable(); }
-    catch(err) { addLog('❌ Ошибка парсинга: ' + err.message); }
-  };
-  reader.readAsText(file);
-};
-
-// ==========================================
-// 7. GANTT CHART ENGINE (Mermaid)
-// ==========================================
-
-/**
- * Санитизирует строку для безопасного использования в синтаксисе Mermaid.
- * Удаляет двоеточия, кавычки, переносы строк и обрезает до 50 символов.
- * @param {string} str - Исходная строка
- * @returns {string} Безопасная строка для Mermaid
- */
 const sanitizeForMermaid = (str) => String(str || '').replace(/[:\n\r",']/g, ' ').substring(0, 50).trim();
 
-/**
- * Генерирует синтаксис Mermaid Gantt на основе текущего плана и отрисовывает его.
- * Группирует задачи по эпикам, использует рассчитанные даты начала/окончания.
- * @returns {Promise<void>}
- */
 const generateGanttChart = async () => {
-  addLog('📊 Генерация диаграммы Ганта (Mermaid)...');
-  
-  const plannedTasks = state.tasks.filter(t => 
-    t.actualStartDate && t.actualEndDate && t.actualStartDate !== '-' && t.actualEndDate !== '-'
-  );
+  console.log('[GANTT] 📊 Генерация диаграммы...');
+  const plannedTasks = state.tasks.filter(t => t.actualStartDate && t.actualStartDate !== '-');
+  if (plannedTasks.length === 0) { console.warn('[GANTT] Нет задач с датами.'); return; }
 
-  if (plannedTasks.length === 0) {
-    addLog('⚠️ Нет задач с рассчитанными датами. Сначала нажмите "Сформировать план".');
-    return;
-  }
-
-  // Формируем валидный Mermaid Gantt синтаксис
-  let syntax = `gantt\n`;
-  syntax += `    title LBKI Project Roadmap\n`;
-  syntax += `    dateFormat  YYYY-MM-DD\n`;
-  syntax += `    axisFormat  %d.%m\n`;
-  syntax += `    excludes    weekends\n`;
-
-  // Группировка по эпикам для читаемости
+  let syntax = `gantt\n    title LBKI Roadmap\n    dateFormat YYYY-MM-DD\n    axisFormat %d.%m\n    excludes weekends\n`;
   const epicGroups = {};
   plannedTasks.forEach(t => {
     const eId = t.epicId || 'none';
@@ -381,78 +383,69 @@ const generateGanttChart = async () => {
   });
 
   for (const [epicId, tasks] of Object.entries(epicGroups)) {
-    const epicName = epicId === 'none' 
-      ? 'Без эпика / Общие задачи' 
-      : (state.epics.find(e => e.id == epicId)?.name || `Эпик ${epicId}`);
-      
-    syntax += `    section ${sanitizeForMermaid(epicName)}\n`;
-    tasks.forEach(t => {
-      syntax += `    ${sanitizeForMermaid(t.name)} :task_${t.id}, ${t.actualStartDate}, ${t.actualEndDate}\n`;
-    });
+    const name = epicId === 'none' ? 'Общие задачи' : (state.epics.find(e => e.id == epicId)?.name || `Эпик ${epicId}`);
+    syntax += `    section ${sanitizeForMermaid(name)}\n`;
+    tasks.forEach(t => syntax += `    ${sanitizeForMermaid(t.name)} :task_${t.id}, ${t.actualStartDate}, ${t.actualEndDate}\n`);
   }
 
-  addLog('✅ Mermaid-синтаксис сформирован. Запуск рендеринга...');
   const container = document.getElementById('gantt-output');
-  const card = document.getElementById('gantt-card');
-  card.classList.remove('hidden');
-  container.innerHTML = '<p style="text-align:center; color:var(--text-light);">⏳ Рендеринг диаграммы...</p>';
+  document.getElementById('gantt-card').classList.remove('hidden');
+  container.innerHTML = '⏳ Рендеринг...';
 
   try {
-    // Инициализация Mermaid при первом вызове
-    if (!window._mermaidInitialized) {
-      mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'neutral' });
-      window._mermaidInitialized = true;
-    }
-
-    // Уникальный ID для рендеринга
-    const renderId = `gantt-render-${Date.now()}`;
-    const { svg } = await mermaid.render(renderId, syntax);
+    if (!window._mermaidInitialized) { mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'neutral' }); window._mermaidInitialized = true; }
+    const { svg } = await mermaid.render(`gantt-${Date.now()}`, syntax);
     container.innerHTML = svg;
-    addLog('🖼️ Диаграмма успешно отрисована.');
+    console.log('[GANTT] ✅ Диаграмма отрисована.');
   } catch (err) {
-    addLog(`❌ Ошибка рендеринга Mermaid: ${err.message}`);
-    console.error('Mermaid render error:', err);
-    container.innerHTML = `<div style="color:var(--danger); padding:10px;">Ошибка генерации. Проверьте консоль.</div>`;
+    console.error('[GANTT] ❌ Ошибка:', err);
+    container.innerHTML = `<div style="color:red; padding:10px;">Ошибка рендеринга. Проверьте консоль.</div>`;
   }
 };
 
-/**
- * Копирует текущий синтаксис Mermaid в буфер обмена.
- */
 const copyMermaidSyntax = async () => {
-  const output = document.getElementById('gantt-output');
-  const rawText = state.tasks
-    .filter(t => t.actualStartDate !== '-')
-    .map(t => `${sanitizeForMermaid(t.name)} :task_${t.id}, ${t.actualStartDate}, ${t.actualEndDate}`)
-    .join('\n');
-    
+  const rawText = state.tasks.filter(t => t.actualStartDate !== '-').map(t => `${sanitizeForMermaid(t.name)} :task_${t.id}, ${t.actualStartDate}, ${t.actualEndDate}`).join('\n');
   const fullSyntax = `gantt\ntitle LBKI Plan\ndateFormat YYYY-MM-DD\naxisFormat %d.%m\n${rawText}`;
-  
   try {
     await navigator.clipboard.writeText(fullSyntax);
-    addLog('📋 Mermaid-код скопирован в буфер обмена.');
-  } catch (err) {
-    addLog('⚠️ Не удалось скопировать в буфер.');
-  }
+    console.log('[GANTT] 📋 Код скопирован.');
+  } catch (err) { console.error('[GANTT] ⚠️ Буфер недоступен'); }
+};
+
+// ==========================================
+// 7. SAVE / LOAD & INIT
+// ==========================================
+const saveJSON = () => {
+  console.log('[IO] 💾 Экспорт JSON...');
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `lbki-plan-${new Date().toISOString().split('T')[0]}.json`; a.click();
+};
+
+const loadJSON = (file) => {
+  if (!file) return;
+  console.log('[IO] 📂 Импорт JSON...');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try { state = {...initialState(), ...JSON.parse(e.target.result)}; console.log('[IO] ✅ Загружено.'); renderTable(); }
+    catch(err) { console.error('[IO] ❌ Ошибка парсинга:', err); }
+  };
+  reader.readAsText(file);
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  addLog('🟢 LBKI Planner v2 инициализирован.');
+  console.log('[INIT] 🟢 LBKI Planner v3 запущен.');
   document.getElementById('btn-add-task').onclick = () => openModal('task');
   document.getElementById('btn-add-epic').onclick = () => openModal('epic');
   document.getElementById('btn-add-feature').onclick = () => openModal('feature');
   document.getElementById('btn-add-resource').onclick = () => openModal('resource');
   document.getElementById('btn-project').onclick = () => openModal('project', state.project);
   document.getElementById('btn-generate').onclick = generatePlan;
+  document.getElementById('btn-gantt').onclick = generateGanttChart;
+  document.getElementById('btn-copy-mermaid').onclick = copyMermaidSyntax;
+  document.getElementById('btn-close-gantt').onclick = () => document.getElementById('gantt-card').classList.add('hidden');
   document.getElementById('btn-save').onclick = saveJSON;
   document.getElementById('btn-load').onclick = () => document.getElementById('file-input').click();
   document.getElementById('file-input').onchange = e => loadJSON(e.target.files[0]);
-  document.getElementById('btn-clear-log').onclick = () => { state.logs = []; renderLogs(); };
-  document.getElementById('btn-gantt').onclick = generateGanttChart;
-  document.getElementById('btn-copy-mermaid').onclick = copyMermaidSyntax;
-  document.getElementById('btn-close-gantt').onclick = () => {
-    document.getElementById('gantt-card').classList.add('hidden');
-    addLog('📊 Окно диаграммы Ганта скрыто.');
-  }
-  renderTable(); renderLogs();
+  renderTable();
 });
