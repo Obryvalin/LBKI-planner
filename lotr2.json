@@ -1,0 +1,265 @@
+{
+  "project": {
+    "name": "LBKI: Операция «Разрушение Кольца»",
+    "description": "Стратегический план по доставке и уничтожению Единого Кольца Всевластья. Включает логистику, разведку маршрутов и боевое сопровождение Носителя.",
+    "startDate": "2026-10-24",
+    "endDate": "2027-03-25"
+  },
+  "epics": [
+    {
+      "id": 1,
+      "name": "Сбор Братства Кольца",
+      "description": "Подготовка, координация и формирование группы для транспортировки Кольца из Ривенделла.",
+      "priority": 1
+    },
+    {
+      "id": 2,
+      "name": "Поход на Восток",
+      "description": "Перемещение через Средиземье, обход вражеских территорий, финальная миссия в Мордоре.",
+      "priority": 1
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "Рекрутинг и координация",
+      "epicId": 1,
+      "priority": 2
+    },
+    {
+      "id": 2,
+      "name": "Снаряжение и логистика",
+      "epicId": 1,
+      "priority": 3
+    },
+    {
+      "id": 3,
+      "name": "Разведка маршрутов",
+      "epicId": 2,
+      "priority": 2
+    },
+    {
+      "id": 4,
+      "name": "Охрана Носителя",
+      "epicId": 2,
+      "priority": 1
+    },
+    {
+      "id": 5,
+      "name": "Проникновение в Мордор",
+      "epicId": 2,
+      "priority": 1
+    }
+  ],
+  "resources": [
+    {
+      "id": 1,
+      "name": "Гэндальф Серый",
+      "capacity": 2,
+      "multiplier": 0.8
+    },
+    {
+      "id": 2,
+      "name": "Арагорн",
+      "capacity": 3,
+      "multiplier": 1
+    },
+    {
+      "id": 3,
+      "name": "Сэмуайз Гэмджи",
+      "capacity": 1,
+      "multiplier": 1.2
+    }
+  ],
+  "tasks": [
+    {
+      "id": 1,
+      "name": "Созвать Совет Элронда",
+      "status": "done",
+      "resourceId": 1,
+      "duration": 3,
+      "startNoEarlier": "2026-10-24",
+      "finishNoLater": "2026-11-01",
+      "actualStartDate": "2026-10-24",
+      "actualEndDate": "2026-10-26",
+      "epicId": 1,
+      "featureId": 1,
+      "prerequisites": [],
+      "priority": 1,
+      "isViolated": false
+    },
+    {
+      "id": 3,
+      "name": "Сформировать состав Братства",
+      "status": "planned",
+      "resourceId": 1,
+      "duration": 2,
+      "startNoEarlier": "2026-10-27",
+      "finishNoLater": "2026-11-02",
+      "actualStartDate": "2026-10-27",
+      "actualEndDate": "2026-10-28",
+      "epicId": 1,
+      "featureId": 1,
+      "prerequisites": [
+        1
+      ],
+      "priority": 1,
+      "isViolated": false
+    },
+    {
+      "id": 5,
+      "name": "Организация охраны Фродо в пути",
+      "status": "planned",
+      "resourceId": 2,
+      "duration": 15,
+      "startNoEarlier": "2026-11-01",
+      "finishNoLater": "2027-01-01",
+      "actualStartDate": "2026-11-01",
+      "actualEndDate": "2026-11-15",
+      "epicId": 2,
+      "featureId": 4,
+      "prerequisites": [
+        3
+      ],
+      "priority": 1,
+      "isViolated": false
+    },
+    {
+      "id": 7,
+      "name": "Отвлечение Назгулов у Минас Тирита",
+      "status": "risk",
+      "resourceId": 2,
+      "duration": 10,
+      "startNoEarlier": "2027-01-15",
+      "finishNoLater": "2027-01-20",
+      "actualStartDate": "2027-01-15",
+      "actualEndDate": "2027-01-24",
+      "epicId": 2,
+      "featureId": 5,
+      "prerequisites": [
+        5
+      ],
+      "priority": 2,
+      "isViolated": true
+    },
+    {
+      "id": 4,
+      "name": "Разведка перевала через Карадрас",
+      "status": "planned",
+      "resourceId": 2,
+      "duration": 7,
+      "startNoEarlier": "2026-11-01",
+      "finishNoLater": "2026-11-15",
+      "actualStartDate": "2026-11-01",
+      "actualEndDate": "2026-11-07",
+      "epicId": 2,
+      "featureId": 3,
+      "prerequisites": [
+        3
+      ],
+      "priority": 2,
+      "isViolated": false
+    },
+    {
+      "id": 6,
+      "name": "Подготовить маскировку для входа в Мордор",
+      "status": "planned",
+      "resourceId": 3,
+      "duration": 4,
+      "startNoEarlier": "2026-12-01",
+      "finishNoLater": "2026-12-10",
+      "actualStartDate": "2026-12-01",
+      "actualEndDate": "2026-12-05",
+      "epicId": 2,
+      "featureId": 5,
+      "prerequisites": [
+        4
+      ],
+      "priority": 1,
+      "isViolated": false
+    },
+    {
+      "id": 2,
+      "name": "Закупить лембасы и эльфийские плащи",
+      "status": "done",
+      "resourceId": 3,
+      "duration": 5,
+      "startNoEarlier": "2026-10-25",
+      "finishNoLater": "2026-11-05",
+      "actualStartDate": "2026-10-25",
+      "actualEndDate": "2026-10-30",
+      "epicId": 1,
+      "featureId": 2,
+      "prerequisites": [],
+      "priority": 2,
+      "isViolated": false
+    }
+  ],
+  "logs": [
+    {
+      "time": "14:22:13",
+      "message": "✅ Загружено."
+    },
+    {
+      "time": "14:22:18",
+      "message": "🚀 Запуск планировщика Waterfall..."
+    },
+    {
+      "time": "14:22:18",
+      "message": "✅ 1: 2026-10-24 → 2026-10-26 "
+    },
+    {
+      "time": "14:22:18",
+      "message": "✅ 3: 2026-10-27 → 2026-10-28 "
+    },
+    {
+      "time": "14:22:18",
+      "message": "✅ 5: 2026-11-01 → 2026-11-15 "
+    },
+    {
+      "time": "14:22:18",
+      "message": "✅ 7: 2027-01-15 → 2027-01-24 ⚠️ СРЫВ"
+    },
+    {
+      "time": "14:22:18",
+      "message": "✅ 4: 2026-11-01 → 2026-11-07 "
+    },
+    {
+      "time": "14:22:18",
+      "message": "✅ 6: 2026-12-01 → 2026-12-05 "
+    },
+    {
+      "time": "14:22:18",
+      "message": "✅ 2: 2026-10-25 → 2026-10-30 "
+    },
+    {
+      "time": "14:22:18",
+      "message": "Обновление состояния: tasks"
+    },
+    {
+      "time": "14:22:18",
+      "message": "🏁 Планирование завершено."
+    },
+    {
+      "time": "14:23:47",
+      "message": "Открыто модальное окно: task (id: 3)"
+    },
+    {
+      "time": "14:23:51",
+      "message": "💾 Сохранение task ID: 3"
+    },
+    {
+      "time": "14:23:53",
+      "message": "Открыто модальное окно: task (id: 3)"
+    },
+    {
+      "time": "14:23:56",
+      "message": "💾 Сохранение task ID: 3"
+    },
+    {
+      "time": "14:24:23",
+      "message": "💾 Экспорт JSON..."
+    }
+  ],
+  "nextId": 8
+}

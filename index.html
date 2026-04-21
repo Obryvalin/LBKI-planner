@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LBKI Backlog Planner</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>LBKI: Планировщик бэклога и дорожных карт</h1>
+      <p class="subtitle">
+        Управление задачами, ресурсами, эпиками и фичами. Автоматическое
+        построение Waterfall-плана.
+      </p>
+    </header>
+
+    <main class="app-container">
+      <div class="toolbar card">
+        <button id="btn-project" class="btn primary">
+          ⚙️ Настройки проекта
+        </button>
+        <button id="btn-add-epic" class="btn">+ Эпик</button>
+        <button id="btn-add-feature" class="btn">+ Фича</button>
+        <button id="btn-add-resource" class="btn">+ Ресурс</button>
+        <button id="btn-add-task" class="btn">+ Задача</button>
+        <div class="spacer"></div>
+        <button id="btn-generate" class="btn success">
+          📅 Сформировать план
+        </button>
+        <button id="btn-gantt" class="btn secondary">📊 Диаграмма Ганта</button>
+        <button id="btn-save" class="btn secondary">💾 Сохранить JSON</button>
+        <button id="btn-load" class="btn secondary">📂 Загрузить JSON</button>
+        <input type="file" id="file-input" accept=".json" hidden />
+      </div>
+
+      <div class="content-wrapper">
+        <div class="table-container card">
+          <div class="filters">
+            <input
+              type="text"
+              id="filter-search"
+              placeholder="🔍 Поиск по ID, имени, ресурсу, эпику..."
+            />
+            <select id="filter-status">
+              <option value="">Все статусы</option>
+              <option value="new">Новая</option>
+              <option value="planned">Запланирована</option>
+              <option value="in-progress">В работе</option>
+              <option value="done">Готово</option>
+              <option value="risk">⚠️ Риск (срыв)</option>
+              <option value="no_resource">Без ресурса</option>
+            </select>
+            <select id="filter-resource">
+              <option value="">Все ресурсы</option>
+            </select>
+          </div>
+          <table id="tasks-table">
+            <thead>
+              <tr>
+                <th data-sort="id">ID</th>
+                <th data-sort="name">Наименование</th>
+                <th data-sort="status">Статус</th>
+                <th data-sort="resource">Ресурс</th>
+                <th data-sort="duration">Длит.</th>
+                <th data-sort="startNoEarlier">Начало не ранее</th>
+                <th data-sort="finishNoLater">Окончание не позднее</th>
+                <th data-sort="actualStart">Факт. начало</th>
+                <th data-sort="actualEnd">Факт. окончание</th>
+                <th data-sort="epic">Эпик</th>
+                <th data-sort="feature">Фича</th>
+                <th data-sort="priority">Приоритет</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="tasks-body"></tbody>
+          </table>
+        </div>
+
+        <aside class="log-panel card" id="log-panel">
+          <h3>📜 Системный журнал</h3>
+          <div id="log-content"></div>
+          <button id="btn-clear-log" class="btn small">Очистить</button>
+        </aside>
+      </div>
+      <div id="gantt-card" class="card hidden" style="margin-top: 20px">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+          "
+        >
+          <h3 style="color: var(--primary-blue); margin: 0">
+            📊 Диаграмма Ганта (Mermaid)
+          </h3>
+          <div style="display: flex; gap: 8px">
+            <button id="btn-copy-mermaid" class="btn small">
+              📋 Копировать код
+            </button>
+            <button id="btn-close-gantt" class="btn small">✕ Скрыть</button>
+          </div>
+        </div>
+        <div
+          id="gantt-output"
+          style="
+            overflow-x: auto;
+            padding: 15px;
+            background: #fafbfc;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+          "
+        ></div>
+      </div>
+    </main>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div class="modal card">
+        <div class="modal-header">
+          <h2 id="modal-title">Редактирование</h2>
+          <button id="modal-close" class="btn-icon">✕</button>
+        </div>
+        <div class="modal-body" id="modal-form-container"></div>
+        <div class="modal-footer">
+          <button id="modal-save" class="btn primary">Сохранить</button>
+          <button id="modal-cancel" class="btn">Отмена</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
