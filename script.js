@@ -138,88 +138,98 @@ const clearLocalStorage = () => {
  * Открывает менеджер сущности (список с возможностью редактирования/создания).
  * @param {string} type - Тип сущности ('epic', 'feature', 'resource')
  */
+/**
+ * Открывает менеджер сущности (Таблица с возможностью CRUD).
+ * @param {string} type - Тип сущности ('epic', 'feature', 'resource')
+ */
 const openManagerModal = (type) => {
   console.log(`[MANAGER] Открыт менеджер: ${type}`);
   const overlay = document.getElementById('modal-overlay');
   const collectionKey = type + 's';
   const items = state[collectionKey] || [];
-  
-  document.getElementById('modal-title').textContent = `Управление: ${type.charAt(0).toUpperCase() + type.slice(1)}`;
-  
-  let listHtml = `<div class="manager-list">`;
+  const headerEl = document.querySelector('.modal-header');
+  const titleEl = document.getElementById('modal-title');
+
+  const config = {
+    epic: { color: 'var(--color-epic)', title: 'Управление: Эпики' },
+    feature: { color: 'var(--color-feature)', title: 'Управление: Фичи' },
+    resource: { color: 'var(--color-resource)', title: 'Управление: Ресурсы' }
+  };
+  const cfg = config[type];
+  headerEl.style.backgroundColor = cfg.color;
+  headerEl.style.color = 'var(--white)';
+  titleEl.textContent = cfg.title;
+
+  let tableHtml = `<table class="manager-table">
+    <thead><tr>
+      <th>ID</th><th>Наименование</th>
+      ${type === 'epic' ? '<th>Приоритет</th>' : ''}
+      ${type === 'feature' ? '<th>Эпик</th><th>Приоритет</th>' : ''}
+      ${type === 'resource' ? '<th>Емкость</th><th>Множитель</th>' : ''}
+      <th style="width:100px;">Действия</th>
+    </tr></thead><tbody>`;
+
   if (items.length === 0) {
-    listHtml += `<p class="empty-msg">Созданные элементы отсутствуют. Нажмите кнопку ниже, чтобы добавить первый.</p>`;
+    tableHtml += `<tr><td colspan="7" style="text-align:center; padding:40px; color:var(--text-light);">Список пуст. Нажмите кнопку ниже, чтобы добавить элемент.</td></tr>`;
   } else {
     items.forEach(item => {
       let meta = '';
-      if (type === 'epic') meta = `Приоритет: ${item.priority || '-'}`;
-      if (type === 'feature') meta = `Эпик: ${state.epics.find(e => e.id == item.epicId)?.name || '-'} | Приоритет: ${item.priority || '-'}`;
-      if (type === 'resource') meta = `Емкость: ${item.capacity || 1} | Множитель: ${item.multiplier || 1}`;
-      
-      listHtml += `
-        <div class="manager-item">
-          <div class="item-info">
-            <span class="item-name">${item.name}</span>
-            <span class="item-meta">${meta}</span>
-          </div>
-          <div class="item-actions">
-            <button class="btn small btn-edit" data-id="${item.id}">✏️ Изменить</button>
-            <button class="btn small btn-delete" data-id="${item.id}">🗑️</button>
-          </div>
-        </div>`;
+      if (type === 'epic') meta = `<td>${item.priority || '-'}</td>`;
+      if (type === 'feature') {
+        const eName = state.epics.find(e => e.id == item.epicId)?.name || '-';
+        meta = `<td class="text-epic">${eName}</td><td>${item.priority || '-'}</td>`;
+      }
+      if (type === 'resource') meta = `<td>${item.capacity || 1}</td><td>${item.multiplier || 1}</td>`;
+      tableHtml += `<tr><td>${item.id}</td><td style="font-weight:600;">${item.name}</td>${meta}
+        <td><button class="btn small btn-edit" data-id="${item.id}">✏️</button> <button class="btn small btn-delete" data-id="${item.id}">🗑️</button></td></tr>`;
     });
   }
-  listHtml += `</div>
-    <button id="btn-add-new-${type}" class="btn primary" style="margin-top:15px;">➕ Создать новый</button>`;
+  tableHtml += `</tbody></table>
+    <button id="btn-add-new-${type}" class="btn" style="background:${cfg.color}; width:100%;">➕ Создать новый</button>`;
 
-  document.getElementById('modal-form-container').innerHTML = listHtml;
+  document.getElementById('modal-form-container').innerHTML = tableHtml;
   overlay.classList.remove('hidden');
 
-  // Привязка событий
-  document.getElementById(`btn-add-new-${type}`).onclick = () => {
-    closeModal();
-    openModal(type, null);
-  };
-
-  document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.onclick = () => {
-      const id = parseInt(btn.dataset.id);
+  // Делегирование событий внутри модального окна
+  document.getElementById('modal-form-container').onclick = (e) => {
+    const target = e.target;
+    if (target.id === `btn-add-new-${type}`) {
+      closeModal();
+      setTimeout(() => openModal(type, null), 100);
+    } else if (target.classList.contains('btn-edit')) {
+      const id = parseInt(target.dataset.id);
       const item = items.find(i => i.id === id);
       closeModal();
-      setTimeout(() => openModal(type, item), 50);
-    };
-  });
-
-  document.querySelectorAll('.btn-delete').forEach(btn => {
-    btn.onclick = () => {
-      const id = parseInt(btn.dataset.id);
+      setTimeout(() => openModal(type, item), 100);
+    } else if (target.classList.contains('btn-delete')) {
+      const id = parseInt(target.dataset.id);
       console.log(`[MANAGER] Удаление ${type} ID: ${id}`);
-      let newState = { ...state };
-      newState[collectionKey] = newState[collectionKey].filter(i => i.id !== id);
-      state = updateState(state, newState);
+      state = updateState(state, { [collectionKey]: state[collectionKey].filter(i => i.id !== id) });
       renderTable();
-      openManagerModal(type); // Перерисовка менеджера
-    };
-  });
+      openManagerModal(type);
+    }
+  };
   
   document.getElementById('modal-close').onclick = closeModal;
   document.getElementById('modal-cancel').onclick = closeModal;
 };
 
 /**
- * Открывает модальное окно формы для создания/редактирования.
- * @param {string} type - Тип сущности
- * @param {Object|null} data - Данные или null для создания
+ * Открывает модальное окно формы. Сбрасывает цвет заголовка.
  */
 const openModal = (type, data = null) => {
   console.log(`[UI] Открыта форма: ${type} ${data ? `(id: ${data.id})` : '(новый)'}`);
   const overlay = document.getElementById('modal-overlay');
-  const title = document.getElementById('modal-title');
-  const formContainer = document.getElementById('modal-form-container');
+  const titleEl = document.getElementById('modal-title');
+  const headerEl = document.querySelector('.modal-header');
+  
+  headerEl.style.backgroundColor = 'var(--white)';
+  headerEl.style.color = 'var(--text-dark)';
+  headerEl.style.borderBottom = '1px solid var(--medium-gray)';
   
   overlay.classList.remove('hidden');
-  title.textContent = data ? `Редактировать ${type}` : `Создать ${type}`;
-  formContainer.innerHTML = generateFormHTML(type, data);
+  titleEl.textContent = data ? `Редактировать ${type}` : `Создать ${type}`;
+  document.getElementById('modal-form-container').innerHTML = generateFormHTML(type, data);
   
   document.getElementById('modal-save').onclick = () => saveModalData(type, data);
   document.getElementById('modal-close').onclick = closeModal;
@@ -322,34 +332,22 @@ const closeModal = () => document.getElementById('modal-overlay').classList.add(
 // ==========================================
 // 4. TABLE RENDERING
 // ==========================================
+
 /**
- * Отрисовывает таблицу задач без кнопки действий. Названия задач кликабельны.
+ * Отрисовывает таблицу задач с цветовой индикацией сущностей.
  */
 const renderTable = () => {
   console.log('[RENDER] Перерисовка таблицы...');
   const tbody = document.getElementById('tasks-body');
   const filterText = document.getElementById('filter-search').value.toLowerCase().trim();
   const filterStatus = document.getElementById('filter-status').value;
-  const filterResEl = document.getElementById('filter-resource');
-  const filterResId = filterResEl.value;
-
-  const currentResOptions = Array.from(filterResEl.options).map(o => String(o.value));
-  state.resources.forEach(r => {
-    if (!currentResOptions.includes(String(r.id))) {
-      const opt = document.createElement('option');
-      opt.value = r.id; opt.textContent = r.name;
-      filterResEl.appendChild(opt);
-    }
-  });
+  const filterResId = document.getElementById('filter-resource').value;
 
   const matches = (task) => {
     if (filterStatus && task.status !== filterStatus) return false;
     if (filterResId && String(task.resourceId) !== filterResId) return false;
     if (filterText) {
-      const epic = state.epics.find(e => e.id == task.epicId)?.name || '';
-      const feat = state.features.find(f => f.id == task.featureId)?.name || '';
-      const res = state.resources.find(r => r.id == task.resourceId)?.name || '';
-      const searchable = `${task.id} ${task.name} ${task.status} ${res} ${epic} ${feat} ${task.priority}`.toLowerCase();
+      const searchable = `${task.id} ${task.name} ${task.status} ${state.resources.find(r=>r.id==task.resourceId)?.name||''} ${state.epics.find(e=>e.id==task.epicId)?.name||''}`.toLowerCase();
       return searchable.includes(filterText);
     }
     return true;
@@ -369,20 +367,19 @@ const renderTable = () => {
     const epic = state.epics.find(e => e.id == task.epicId)?.name || '-';
     const feat = state.features.find(f => f.id == task.featureId)?.name || '-';
     const res = state.resources.find(r => r.id == task.resourceId)?.name || '-';
-    const cls = task.isViolated ? 'violation' : '';
     return `
-      <tr class="${cls}">
+      <tr class="${task.isViolated ? 'violation' : ''}">
         <td>${task.id}</td>
-        <td class="task-name-cell" data-task-id="${task.id}">${task.name}</td>
+        <td class="text-task-name" data-task-id="${task.id}">${task.name}</td>
         <td>${task.status}</td>
-        <td>${res}</td>
+        <td class="text-resource">${res}</td>
         <td>${task.duration}</td>
         <td>${formatDMY(task.startNoEarlier)}</td>
         <td>${formatDMY(task.finishNoLater)}</td>
         <td>${formatDMY(task.actualStartDate)}</td>
         <td>${formatDMY(task.actualEndDate)}</td>
-        <td>${epic}</td>
-        <td>${feat}</td>
+        <td class="text-epic">${epic}</td>
+        <td class="text-feature">${feat}</td>
         <td>${task.priority}</td>
       </tr>`;
   }).join('') || '<tr><td colspan="12" style="text-align:center;padding:20px;">Нет задач</td></tr>';
@@ -411,6 +408,7 @@ const generatePlan = () => {
   if (state.tasks.length === 0) { console.warn('[PLAN] Нет задач.'); return; }
 
   const sortedTasks = resolveTaskOrder(state.tasks, state.epics, state.features);
+  console.log(sortedTasks);
   let resourceCalendar = {};
   const projectStart = new Date(state.project.startDate);
 
@@ -759,18 +757,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('file-input').onchange = e => loadJSON(e.target.files[0]);
 
   
-
-  // 🔹 Делегирование кликов по задачам
-  document.getElementById('tasks-body').addEventListener('click', (e) => {
-    const cell = e.target.closest('.task-name-cell');
-    if (!cell) return;
-    const taskId = parseInt(cell.dataset.taskId);
-    const task = state.tasks.find(t => t.id === taskId);
-    if (task) {
-      console.log(`[UI] Клик по задаче ID: ${taskId}. Открытие редактора.`);
-      openModal('task', task);
-    }
-  });
+// Делегирование кликов по задачам
+document.getElementById('tasks-body').addEventListener('click', (e) => {
+  const cell = e.target.closest('.text-task-name');
+  if (cell) {
+    const task = state.tasks.find(t => t.id == cell.dataset.taskId);
+    if (task) openModal('task', task);
+  }
+});
 
   // 🔹 Защита от случайного закрытия/обновления страницы
   window.addEventListener('beforeunload', (e) => {
