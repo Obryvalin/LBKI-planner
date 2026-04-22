@@ -631,6 +631,96 @@ const loadJSON = (file) => {
   reader.readAsText(file);
 };
 
+// ==========================================
+// 8. DEPENDENCY FLOWCHART (Mermaid)
+// ==========================================
+
+/**
+ * Строит чистый Mermaid-синтаксис для блок-схемы зависимостей.
+ * @param {Array} tasks - Массив задач из состояния
+ * @returns {string} Готовый синтаксис flowchart
+ */
+const buildDepsSyntax = (tasks) => {
+    let syntax = `flowchart TD\n`;
+    // Классы для стилизации узлов согласно UI-палитре
+    syntax += `    classDef default fill:#f5f7fa,stroke:#e1e5eb,stroke-width:2px,color:#2d3748;\n`;
+    syntax += `    classDef crit fill:#ffeaea,stroke:#e74c3c,stroke-width:2px,color:#c0392b;\n`;
+    syntax += `    classDef done fill:#d4edda,stroke:#28a745,stroke-width:2px,color:#155724;\n`;
+    syntax += `    classDef active fill:#cce5ff,stroke:#007bff,stroke-width:2px,color:#004085;\n\n`;
+
+    // Объявляем все узлы с применением классов статуса
+    tasks.forEach(t => {
+        let cls = 'default';
+        if (t.isViolated) cls = 'crit';
+        else if (t.status === 'done') cls = 'done';
+        else if (t.status === 'in-progress') cls = 'active';
+        syntax += `    task_${t.id}["${sanitizeForMermaid(t.name)}"]:::${cls}\n`;
+    });
+
+    syntax += `\n`;
+    // Рисуем стрелки зависимостей
+    tasks.forEach(t => {
+        (t.prerequisites || []).forEach(pid => {
+            syntax += `    task_${pid} --> task_${t.id}\n`;
+        });
+    });
+    return syntax;
+};
+
+/**
+ * Генерирует и отрисовывает блок-схему зависимостей задач.
+ * @returns {Promise<void>}
+ */
+const generateDependencyGraph = async () => {
+    console.log('[DEPS] 🕸️ Генерация схемы зависимостей...');
+    const tasks = state.tasks;
+    
+    if (tasks.length === 0 || !tasks.some(t => (t.prerequisites || []).length > 0)) {
+        console.warn('[DEPS] Нет задач с пререквизитами для построения схемы.');
+        alert('Нет зависимостей между задачами. Укажите пререквизиты в редакторе задач.');
+        return;
+    }
+
+    const syntax = buildDepsSyntax(tasks);
+    console.log('[DEPS] Синтаксис сформирован. Запуск рендеринга...');
+
+    const container = document.getElementById('deps-card');
+    const output = document.getElementById('deps-output');
+    container.classList.remove('hidden');
+    output.innerHTML = '<p style="text-align:center; color:var(--text-light);">⏳ Рендеринг графа...</p>';
+
+    try {
+        if (!window._mermaidInitialized) {
+            mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'neutral' });
+            window._mermaidInitialized = true;
+        }
+
+        const renderId = `deps-${Date.now()}`;
+        const { svg } = await mermaid.render(renderId, syntax);
+        output.innerHTML = svg;
+        console.log('[DEPS] ✅ Блок-схема успешно отрисована.');
+    } catch (err) {
+        console.error('[DEPS] ❌ Ошибка рендеринга Mermaid:', err.message);
+        output.innerHTML = `<div style="color:var(--text-light); padding:10px; text-align:center;">⚠️ Ошибка визуализации. Проверьте консоль (F12).</div>`;
+    }
+};
+
+/**
+ * Копирует сырой Mermaid-код схемы зависимостей в буфер обмена.
+ */
+const copyDependencySyntax = async () => {
+    const syntax = buildDepsSyntax(state.tasks);
+    try {
+        await navigator.clipboard.writeText(syntax);
+        console.log('[DEPS] 📋 Код схемы скопирован в буфер.');
+    } catch (err) {
+        console.error('[DEPS] ⚠️ Не удалось скопировать в буфер:', err);
+    }
+};
+
+
+// ========================================================================================================
+
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[INIT] 🟢 LBKI Planner v5 запущен.');
 
@@ -659,10 +749,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-generate').onclick = generatePlan;
   document.getElementById('btn-gantt').onclick = generateGanttChart;
   document.getElementById('btn-copy-mermaid').onclick = copyMermaidSyntax;
+  document.getElementById('btn-deps-graph').onclick = generateDependencyGraph;
+  document.getElementById('btn-copy-deps').onclick = copyDependencySyntax;
   document.getElementById('btn-close-gantt').onclick = () => document.getElementById('gantt-card').classList.add('hidden');
+    document.getElementById('btn-close-deps').onclick = () => document.getElementById('deps-card').classList.add('hidden');
+  
   document.getElementById('btn-save').onclick = saveJSON;
   document.getElementById('btn-load').onclick = () => document.getElementById('file-input').click();
   document.getElementById('file-input').onchange = e => loadJSON(e.target.files[0]);
+
+  
 
   // 🔹 Делегирование кликов по задачам
   document.getElementById('tasks-body').addEventListener('click', (e) => {

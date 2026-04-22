@@ -7,8 +7,6 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-
-
     <main class="app-container">
       <div class="toolbar card">
         <button id="btn-project" class="btn primary">
@@ -23,6 +21,9 @@
           📅 Сформировать план
         </button>
         <button id="btn-gantt" class="btn secondary">📊 Диаграмма Ганта</button>
+        <button id="btn-deps-graph" class="btn secondary">
+          🕸️ Схема зависимостей
+        </button>
         <button id="btn-save" class="btn secondary">💾 Сохранить JSON</button>
         <button id="btn-load" class="btn secondary">📂 Загрузить JSON</button>
         <input type="file" id="file-input" accept=".json" hidden />
@@ -40,7 +41,18 @@
         </div>
         <div id="gantt-output"></div>
       </div>
-
+      <div id="deps-card" class="card hidden" style="margin-bottom: 20px">
+        <div class="gantt-header">
+          <h3>🕸️ Блок-схема зависимостей задач</h3>
+          <div class="gantt-actions">
+            <button id="btn-copy-deps" class="btn small">
+              📋 Копировать код
+            </button>
+            <button id="btn-close-deps" class="btn small">✕ Скрыть</button>
+          </div>
+        </div>
+        <div id="deps-output"></div>
+      </div>
       <div class="table-container card">
         <div class="filters">
           <input
