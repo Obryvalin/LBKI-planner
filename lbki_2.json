@@ -1,0 +1,430 @@
+{
+  "project": {
+    "name": "Лаборатория БКИ",
+    "description": "",
+    "startDate": "2026-01-01",
+    "endDate": "2026-12-31"
+  },
+  "epics": [
+    {
+      "id": 2,
+      "name": "Реализованы доработки по развитию Лаборатории БКИ этап 2",
+      "priority": 1,
+      "description": "",
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30"
+    }
+  ],
+  "features": [
+    {
+      "id": 7,
+      "name": "Реализован отчет по сверке всех ИС-Участников процесса передачи данных в БКИ",
+      "epicId": 2,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30"
+    },
+    {
+      "id": 9,
+      "name": "Проведен анализ по загрузке отчетов качества данных из НБКИ, ОКБ и СБ в DAPP",
+      "epicId": 2,
+      "priority": 2,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30"
+    },
+    {
+      "id": 13,
+      "name": "Проведен анализ по созданию витрин Лаборатории БКИ в DAPP",
+      "epicId": 2,
+      "priority": 4,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30"
+    },
+    {
+      "id": 15,
+      "name": "Сформированы требования ФЛК с учетом ландшафта Банка",
+      "epicId": 2,
+      "priority": 5,
+      "startNoEarlier": "2026-06-01",
+      "finishNoLater": "2026-06-01"
+    },
+    {
+      "id": 33,
+      "name": "Сверочные отчеты по кредитным заявкам из СУБО УЗ/КН/КК/Авто/Ипотека",
+      "epicId": 2,
+      "priority": 1,
+      "startNoEarlier": "2026-04-20",
+      "finishNoLater": "2026-06-30"
+    }
+  ],
+  "resources": [
+    {
+      "id": 16,
+      "name": "Олейник А",
+      "capacity": 1,
+      "multiplier": 1
+    },
+    {
+      "id": 17,
+      "name": "Обрывалин И",
+      "capacity": 1,
+      "multiplier": 1.2
+    },
+    {
+      "id": 18,
+      "name": "Гулая Ю",
+      "capacity": 1,
+      "multiplier": 1.5
+    }
+  ],
+  "tasks": [
+    {
+      "id": 31,
+      "name": "ОПЭ сверочные отчеты Источник-Витрины",
+      "epicId": 2,
+      "featureId": 7,
+      "resourceId": 16,
+      "duration": 10,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [],
+      "status": "planned",
+      "actualStartDate": "2026-04-01",
+      "actualEndDate": "2026-04-14",
+      "isViolated": false
+    },
+    {
+      "id": 32,
+      "prerequisites": [],
+      "name": "Получение доступов",
+      "epicId": 2,
+      "featureId": 33,
+      "resourceId": 17,
+      "duration": 2,
+      "priority": 5,
+      "startNoEarlier": "2026-04-20",
+      "finishNoLater": "2026-06-30",
+      "status": "planned",
+      "actualStartDate": "2026-04-20",
+      "actualEndDate": "2026-04-22",
+      "isViolated": false
+    },
+    {
+      "id": 19,
+      "name": "Сверка Витрины - СУБО БКИ",
+      "epicId": 2,
+      "featureId": 7,
+      "resourceId": 16,
+      "duration": 10,
+      "priority": 1,
+      "startNoEarlier": "2026-04-20",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        31
+      ],
+      "status": "planned",
+      "actualStartDate": "2026-04-15",
+      "actualEndDate": "2026-04-28",
+      "isViolated": false
+    },
+    {
+      "id": 35,
+      "name": "Согласование сверок с пользователями",
+      "epicId": 2,
+      "featureId": 33,
+      "resourceId": 17,
+      "duration": 2,
+      "priority": 5,
+      "startNoEarlier": "2026-04-20",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        32
+      ],
+      "status": "planned",
+      "actualStartDate": "2026-04-23",
+      "actualEndDate": "2026-04-27",
+      "isViolated": false
+    },
+    {
+      "id": 36,
+      "name": "Разработка загрузки данных из DAPP",
+      "epicId": 2,
+      "featureId": 33,
+      "resourceId": 17,
+      "duration": 3,
+      "priority": 5,
+      "startNoEarlier": "2026-04-20",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        32
+      ],
+      "status": "planned",
+      "actualStartDate": "2026-04-28",
+      "actualEndDate": "2026-05-01",
+      "isViolated": false
+    },
+    {
+      "id": 34,
+      "name": "Анализ ЛМД СУБО",
+      "epicId": 2,
+      "featureId": 33,
+      "resourceId": 17,
+      "duration": 4,
+      "priority": 5,
+      "startNoEarlier": "2026-04-20",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        32
+      ],
+      "status": "risk",
+      "actualStartDate": "2026-05-04",
+      "actualEndDate": "2026-05-08",
+      "isViolated": false
+    },
+    {
+      "id": 20,
+      "prerequisites": [
+        19
+      ],
+      "name": "Сверка СУБО БКИ - Импорт/Экспорт/Reject CRE",
+      "epicId": 2,
+      "featureId": 7,
+      "resourceId": 16,
+      "duration": 10,
+      "priority": 1,
+      "startNoEarlier": "2026-04-12",
+      "finishNoLater": "2026-06-30",
+      "status": "planned",
+      "actualStartDate": "2026-04-29",
+      "actualEndDate": "2026-05-12",
+      "isViolated": false
+    },
+    {
+      "id": 37,
+      "name": "Разработка скриптов построения отчета",
+      "epicId": 2,
+      "featureId": 33,
+      "resourceId": 17,
+      "duration": 2,
+      "priority": 5,
+      "startNoEarlier": "2026-04-20",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        36
+      ],
+      "status": "planned",
+      "actualStartDate": "2026-05-20",
+      "actualEndDate": "2026-05-22",
+      "isViolated": false
+    },
+    {
+      "id": 21,
+      "name": "Встраивание в сверку с витринами и источниками",
+      "epicId": 2,
+      "featureId": 7,
+      "resourceId": 16,
+      "duration": 10,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        20
+      ],
+      "status": "planned",
+      "actualStartDate": "2026-05-13",
+      "actualEndDate": "2026-05-26",
+      "isViolated": false
+    },
+    {
+      "id": 38,
+      "name": "Отладка по замечаниям пользователей",
+      "epicId": 2,
+      "featureId": 33,
+      "resourceId": 17,
+      "duration": 5,
+      "priority": 5,
+      "startNoEarlier": "2026-04-20",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        37,
+        35
+      ],
+      "status": "planned",
+      "actualStartDate": "2026-06-01",
+      "actualEndDate": "2026-06-08",
+      "isViolated": false
+    },
+    {
+      "id": 39,
+      "name": "Передача в ежедневный расчет",
+      "epicId": 2,
+      "featureId": 33,
+      "resourceId": 17,
+      "duration": 2,
+      "priority": 5,
+      "startNoEarlier": "2026-04-20",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        38
+      ],
+      "status": "planned",
+      "actualStartDate": "2026-06-09",
+      "actualEndDate": "2026-06-11",
+      "isViolated": false
+    },
+    {
+      "id": 25,
+      "name": "Формирование требований на автоматизацию работы с отчётами качества данных в БКИ",
+      "epicId": 2,
+      "featureId": 9,
+      "resourceId": 17,
+      "duration": 10,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [],
+      "status": "planned",
+      "actualStartDate": "2026-04-01",
+      "actualEndDate": "2026-04-16",
+      "isViolated": false
+    },
+    {
+      "id": 26,
+      "name": "Разработка скриптов на формирование userlist по результатам обработки отчетов метрик БКИ",
+      "epicId": 2,
+      "featureId": 9,
+      "resourceId": 17,
+      "duration": 10,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        25
+      ],
+      "status": "planned",
+      "actualStartDate": "2026-06-12",
+      "actualEndDate": "2026-06-29",
+      "isViolated": false
+    },
+    {
+      "id": 22,
+      "name": "Анализ интеграции с ПКД",
+      "epicId": 2,
+      "featureId": 13,
+      "resourceId": 17,
+      "duration": 5,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [],
+      "status": "planned",
+      "actualStartDate": "2026-05-11",
+      "actualEndDate": "2026-05-18",
+      "isViolated": false
+    },
+    {
+      "id": 23,
+      "name": "Анализ интеграции с СУБО БКИ ФЛ",
+      "epicId": 2,
+      "featureId": 13,
+      "resourceId": 17,
+      "duration": 10,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [],
+      "status": "risk",
+      "actualStartDate": "2026-06-30",
+      "actualEndDate": "2026-07-15",
+      "isViolated": true
+    },
+    {
+      "id": 24,
+      "name": "Заполнение и согласование шаблонов с ВиСОД",
+      "epicId": 2,
+      "featureId": 13,
+      "resourceId": 17,
+      "duration": 5,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [],
+      "status": "risk",
+      "actualStartDate": "2026-07-16",
+      "actualEndDate": "2026-07-23",
+      "isViolated": true
+    },
+    {
+      "id": 27,
+      "name": "Сформированы системные требования на разработку контроля качества данных вне ЕФКи",
+      "epicId": 2,
+      "featureId": 15,
+      "resourceId": 17,
+      "duration": 5,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [],
+      "status": "risk",
+      "actualStartDate": "2026-07-24",
+      "actualEndDate": "2026-07-31",
+      "isViolated": true
+    },
+    {
+      "id": 28,
+      "name": "Сформировано полное BRD к ФЛК",
+      "epicId": 2,
+      "featureId": 15,
+      "resourceId": 17,
+      "duration": 5,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        27
+      ],
+      "status": "risk",
+      "actualStartDate": "2026-08-03",
+      "actualEndDate": "2026-08-10",
+      "isViolated": true
+    },
+    {
+      "id": 29,
+      "name": "RDS на загрузку данных СУБО БКИ в DAPP",
+      "epicId": 2,
+      "featureId": 15,
+      "resourceId": 17,
+      "duration": 1,
+      "priority": 1,
+      "startNoEarlier": "2026-04-01",
+      "finishNoLater": "2026-06-30",
+      "prerequisites": [
+        28
+      ],
+      "status": "risk",
+      "actualStartDate": "2026-08-11",
+      "actualEndDate": "2026-08-12",
+      "isViolated": true
+    },
+    {
+      "id": 30,
+      "name": "Доработка сверочных отчетов источник - БКИ по учету отчетов ФЛК",
+      "epicId": 2,
+      "featureId": 15,
+      "resourceId": 16,
+      "duration": 10,
+      "priority": 1,
+      "startNoEarlier": "2026-07-01",
+      "finishNoLater": "2026-09-30",
+      "prerequisites": [
+        29
+      ],
+      "status": "risk",
+      "actualStartDate": "2026-08-05",
+      "actualEndDate": "2026-08-18",
+      "isViolated": true
+    }
+  ],
+  "nextId": 40
+}

@@ -46,6 +46,32 @@ const formatDMY = (dateStr) => {
   return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : dateStr;
 };
 
+/**
+ * Получает ограничения задачи через наследование от Фичи или Эпика.
+ * @param {Object} task - Задача
+ * @returns {Object} { priority, startNoEarlier, finishNoLater }
+ */
+const getTaskInheritedConstraints = (task) => {
+  let priority = 5, startNoEarlier = null, finishNoLater = null;
+  const feat = state.features.find(f => f.id == task.featureId);
+  if (feat) {
+    priority = feat.priority || priority;
+    startNoEarlier = feat.startNoEarlier || startNoEarlier;
+    finishNoLater = feat.finishNoLater || finishNoLater;
+  } else {
+    const epic = state.epics.find(e => e.id == task.epicId);
+    if (epic) {
+      priority = epic.priority || priority;
+      startNoEarlier = epic.startNoEarlier || startNoEarlier;
+      finishNoLater = epic.finishNoLater || finishNoLater;
+    }
+  }
+  // Фоллбэк на даты проекта, если у родителя не указаны сроки
+  if (!startNoEarlier) startNoEarlier = state.project.startDate;
+  if (!finishNoLater) finishNoLater = state.project.endDate;
+  return { priority, startNoEarlier, finishNoLater };
+};
+
 // ==========================================
 // 2.1 DATE & WEEKEND HELPERS
 // ==========================================
@@ -160,32 +186,31 @@ const openManagerModal = (type) => {
   headerEl.style.color = 'var(--white)';
   titleEl.textContent = cfg.title;
 
-  let tableHtml = `<table class="manager-table">
-    <thead><tr>
-      <th>ID</th><th>Наименование</th>
-      ${type === 'epic' ? '<th>Приоритет</th>' : ''}
-      ${type === 'feature' ? '<th>Эпик</th><th>Приоритет</th>' : ''}
-      ${type === 'resource' ? '<th>Емкость</th><th>Множитель</th>' : ''}
-      <th style="width:100px;">Действия</th>
-    </tr></thead><tbody>`;
+  // Внутри openManagerModal, замените блок генерации заголовков и строк таблицы:
+let tableHtml = `<table class="manager-table"><thead><tr>
+  <th>ID</th><th>Наименование</th>
+  ${type === 'epic' ? '<th>Приоритет</th><th>Начало не ранее</th><th>Окончание не позднее</th>' : ''}
+  ${type === 'feature' ? '<th>Эпик</th><th>Приоритет</th><th>Дедлайн</th>' : ''}
+  ${type === 'resource' ? '<th>Емкость</th><th>Множитель</th>' : ''}
+  <th style="width:100px;">Действия</th>
+</tr></thead><tbody>`;
 
-  if (items.length === 0) {
-    tableHtml += `<tr><td colspan="7" style="text-align:center; padding:40px; color:var(--text-light);">Список пуст. Нажмите кнопку ниже, чтобы добавить элемент.</td></tr>`;
-  } else {
-    items.forEach(item => {
-      let meta = '';
-      if (type === 'epic') meta = `<td>${item.priority || '-'}</td>`;
-      if (type === 'feature') {
-        const eName = state.epics.find(e => e.id == item.epicId)?.name || '-';
-        meta = `<td class="text-epic">${eName}</td><td>${item.priority || '-'}</td>`;
-      }
-      if (type === 'resource') meta = `<td>${item.capacity || 1}</td><td>${item.multiplier || 1}</td>`;
-      tableHtml += `<tr><td>${item.id}</td><td style="font-weight:600;">${item.name}</td>${meta}
-        <td><button class="btn small btn-edit" data-id="${item.id}">✏️</button> <button class="btn small btn-delete" data-id="${item.id}">🗑️</button></td></tr>`;
-    });
-  }
-  tableHtml += `</tbody></table>
-    <button id="btn-add-new-${type}" class="btn" style="background:${cfg.color}; width:100%;">➕ Создать новый</button>`;
+if (items.length === 0) {
+  tableHtml += `<tr><td colspan="7" style="text-align:center; padding:40px; color:var(--text-light);">Список пуст.</td></tr>`;
+} else {
+  items.forEach(item => {
+    let meta = '';
+    if (type === 'epic') meta = `<td>${item.priority||'-'}</td><td>${formatDMY(item.startNoEarlier)}</td><td>${formatDMY(item.finishNoLater)}</td>`;
+    if (type === 'feature') {
+      const eName = state.epics.find(e => e.id == item.epicId)?.name || '-';
+      meta = `<td class="text-epic">${eName}</td><td>${item.priority||'-'}</td><td>${formatDMY(item.finishNoLater)}</td>`;
+    }
+    if (type === 'resource') meta = `<td>${item.capacity||1}</td><td>${item.multiplier||1}</td>`;
+    tableHtml += `<tr><td>${item.id}</td><td style="font-weight:600;">${item.name}</td>${meta}
+      <td><button class="btn small btn-edit" data-id="${item.id}">✏️</button> <button class="btn small btn-delete" data-id="${item.id}">🗑️</button></td></tr>`;
+  });
+}
+tableHtml += `</tbody></table><button id="btn-add-new-${type}" class="btn" style="background:${cfg.color}; width:100%; margin-top:15px;">➕ Создать новый</button>`;
 
   document.getElementById('modal-form-container').innerHTML = tableHtml;
   overlay.classList.remove('hidden');
@@ -247,22 +272,26 @@ const generateFormHTML = (type, data) => {
     ],
     epic: [
       { key: 'name', label: 'Наименование' }, { key: 'priority', label: 'Приоритет (1-10)', type: 'number' },
+      { key: 'startNoEarlier', label: 'Начало не ранее', type: 'date' }, { key: 'finishNoLater', label: 'Окончание не позднее', type: 'date' },
       { key: 'description', label: 'Описание', type: 'textarea', full: true }
     ],
     feature: [
       { key: 'name', label: 'Наименование' }, { key: 'epicId', label: 'Эпик', type: 'select', options: state.epics.map(e => ({v: e.id, t: e.name})) },
-      { key: 'priority', label: 'Приоритет (1-10)', type: 'number' }
+      { key: 'priority', label: 'Приоритет (1-10)', type: 'number' },
+      { key: 'startNoEarlier', label: 'Начало не ранее', type: 'date' }, { key: 'finishNoLater', label: 'Окончание не позднее', type: 'date' }
     ],
     resource: [
       { key: 'name', label: 'Наименование' }, { key: 'capacity', label: 'Емкость (задач)', type: 'number', step: 1, min: 1 },
       { key: 'multiplier', label: 'Множитель длительности', type: 'number', step: 0.1, min: 0.1 }
     ],
     task: [
-      { key: 'name', label: 'Наименование', full: true }, { key: 'epicId', label: 'Эпик', type: 'select', options: state.epics.map(e => ({v: e.id, t: e.name})) },
-      { key: 'featureId', label: 'Фича', type: 'select', options: state.features.map(f => ({v: f.id, t: f.name})) }, { key: 'resourceId', label: 'Ресурс', type: 'select', options: state.resources.map(r => ({v: r.id, t: r.name})) },
-      { key: 'duration', label: 'Длительность (дней)', type: 'number', min: 1 }, { key: 'priority', label: 'Приоритет (1-10)', type: 'number', min: 1, max: 10 },
-      { key: 'startNoEarlier', label: 'Начало не ранее', type: 'date' }, { key: 'finishNoLater', label: 'Окончание не позднее', type: 'date' },
-      { key: 'prerequisites', label: 'Пререквизиты (ID через запятую)', full: true }, { key: 'status', label: 'Статус', type: 'select', options: [
+      { key: 'name', label: 'Наименование', full: true }, 
+      { key: 'epicId', label: 'Эпик', type: 'select', options: state.epics.map(e => ({v: e.id, t: e.name})) },
+      { key: 'featureId', label: 'Фича', type: 'select', options: state.features.map(f => ({v: f.id, t: f.name})) }, 
+      { key: 'resourceId', label: 'Ресурс', type: 'select', options: state.resources.map(r => ({v: r.id, t: r.name})) },
+      { key: 'duration', label: 'Длительность (дней)', type: 'number', min: 1 },
+      { key: 'prerequisites', label: 'Пререквизиты (ID через запятую)', full: true }, 
+      { key: 'status', label: 'Статус', type: 'select', options: [
         {v: 'new', t: 'Новая'}, {v: 'planned', t: 'Запланирована'}, {v: 'in-progress', t: 'В работе'}, {v: 'done', t: 'Готово'}
       ]}
     ]
@@ -291,9 +320,10 @@ const saveModalData = (type, oldData) => {
   const collect = () => {
     const res = oldData ? { ...oldData } : { id: state.nextId++ };
     const fieldKeys = type === 'project' ? ['name','description','startDate','endDate'] :
-                      type === 'task' ? ['name','epicId','featureId','resourceId','duration','priority','startNoEarlier','finishNoLater','prerequisites','status'] :
+                      type === 'task' ? ['name','epicId','featureId','resourceId','duration','prerequisites','status'] :
                       type === 'resource' ? ['name','capacity','multiplier'] :
-                      type === 'feature' ? ['name','epicId','priority'] : ['name','priority','description'];
+                      type === 'feature' ? ['name','epicId','priority','startNoEarlier','finishNoLater'] : 
+                      ['name','priority','startNoEarlier','finishNoLater','description']; // epic
 
     fieldKeys.forEach(k => {
       const el = document.getElementById(`input-${k}`);
@@ -374,15 +404,12 @@ const renderTable = () => {
         <td>${task.status}</td>
         <td class="text-resource">${res}</td>
         <td>${task.duration}</td>
-        <td>${formatDMY(task.startNoEarlier)}</td>
-        <td>${formatDMY(task.finishNoLater)}</td>
         <td>${formatDMY(task.actualStartDate)}</td>
         <td>${formatDMY(task.actualEndDate)}</td>
         <td class="text-epic">${epic}</td>
         <td class="text-feature">${feat}</td>
-        <td>${task.priority}</td>
       </tr>`;
-  }).join('') || '<tr><td colspan="12" style="text-align:center;padding:20px;">Нет задач</td></tr>';
+  }).join('') || '<tr><td colspan="9" style="text-align:center;padding:20px;">Нет задач</td></tr>';
 };
 
 document.getElementById('tasks-table').querySelector('thead').addEventListener('click', (e) => {
@@ -404,47 +431,41 @@ document.getElementById('tasks-table').querySelector('thead').addEventListener('
  * Формирует Waterfall дорожную карту с учётом рабочих дней (Пн-Пт).
  */
 const generatePlan = () => {
-  console.log('[PLAN] 🚀 Запуск планировщика (рабочие дни Пн-Пт)...');
+  console.log('[PLAN] 🚀 Запуск планировщика с наследованием дедлайнов...');
   if (state.tasks.length === 0) { console.warn('[PLAN] Нет задач.'); return; }
 
   const sortedTasks = resolveTaskOrder(state.tasks, state.epics, state.features);
-  console.log(sortedTasks);
   let resourceCalendar = {};
   const projectStart = new Date(state.project.startDate);
 
   const plannedTasks = sortedTasks.map(task => {
+    const constraints = getTaskInheritedConstraints(task); // <-- Наследование
     if (!task.resourceId) return { ...task, actualStartDate: '-', actualEndDate: '-', status: 'no_resource', isViolated: false };
     const res = state.resources.find(r => r.id == task.resourceId);
     if (!res) return { ...task, actualStartDate: '-', actualEndDate: '-', status: 'missing_resource', isViolated: false };
 
     const effDuration = Math.ceil((task.duration || 1) * (res.multiplier || 1));
-    let candidate = new Date(task.startNoEarlier || projectStart);
-    
-    // Если startNoEarlier выпадает на выходной, сдвигаем на понедельник
+    let candidate = new Date(constraints.startNoEarlier || projectStart);
     while (isWeekend(candidate)) candidate.setDate(candidate.getDate() + 1);
     
     const prereqEnds = (task.prerequisites || [])
       .map(pid => state.tasks.find(t => t.id === pid)?.actualEndDate)
       .filter(Boolean).map(d => new Date(d));
-      
     if (prereqEnds.length) {
       const latest = new Date(Math.max(...prereqEnds.map(d => d.getTime())));
       const nextAvail = advanceToNextWorkingDay(latest);
-      if (nextAvail > candidate) {
-        console.log(`[PLAN] 📅 Задача ${task.id}: сдвиг на ${formatDMY(nextAvail)} из-за пререквизитов (пропуск выходных)`);
-        candidate = nextAvail;
-      }
+      if (nextAvail > candidate) candidate = nextAvail;
     }
 
     const finalStart = findAvailableSlot(resourceCalendar, task.resourceId, candidate, effDuration, res.capacity || 1);
     const workingDays = getWorkingDates(finalStart, effDuration);
     const finalEnd = workingDays[workingDays.length - 1];
-    
     allocateResource(resourceCalendar, task.resourceId, finalStart, effDuration);
 
-    const deadline = task.finishNoLater ? new Date(task.finishNoLater) : null;
+    // Срыв сроков проверяется по наследованному дедлайну Фичи/Эпика
+    const deadline = new Date(constraints.finishNoLater);
     const isViolated = deadline && finalEnd > deadline;
-    console.log(`[PLAN] ✅ ${task.id}: ${formatDMY(finalStart)} → ${formatDMY(finalEnd)} (${effDuration} р.д.) ${isViolated ? '⚠️ СРЫВ' : ''}`);
+    console.log(`[PLAN] ✅ ${task.id}: ${formatDMY(finalStart)} → ${formatDMY(finalEnd)} [Дедлайн: ${formatDMY(constraints.finishNoLater)}] ${isViolated ? '⚠️ СРЫВ' : ''}`);
     
     return {
       ...task, 
@@ -495,7 +516,12 @@ const allocateResource = (cal, resId, start, duration) => {
  * Сортирует задачи по зависимостям и composite priority.
  */
 const resolveTaskOrder = (tasks, epics, features) => {
-  const getScore = t => (epics.find(e=>e.id==t.epicId)?.priority||5)*100 + (features.find(f=>f.id==t.featureId)?.priority||5)*10 + (t.priority||5);
+  // Сортировка по наследуемому приоритету: Эпик(×100) + Фича(×10)
+  const getScore = t => {
+    const epic = epics.find(e => e.id == t.epicId);
+    const feat = features.find(f => f.id == t.featureId);
+    return ((epic?.priority || 5) * 100) + ((feat?.priority || 5) * 10);
+  };
   const inDeg = {}, adj = {};
   tasks.forEach(t => { inDeg[t.id] = 0; adj[t.id] = []; });
   tasks.forEach(t => (t.prerequisites||[]).forEach(p => { if(adj[p]) adj[p].push(t.id); inDeg[t.id]++; }));
@@ -507,9 +533,10 @@ const resolveTaskOrder = (tasks, epics, features) => {
     const u = q.shift(); res.push(u);
     adj[u].forEach(v => { if(--inDeg[v]===0) q.push(v); });
   }
-  console.log(`[PLAN] 📊 Отсортировано ${res.length} задач`);
+  console.log(`[PLAN] 📊 Отсортировано ${res.length} задач по иерархии приоритетов`);
   return res.map(id => tasks.find(t=>t.id===id));
 };
+
 
 // ==========================================
 // 6. GANTT CHART

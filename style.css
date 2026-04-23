@@ -63,7 +63,7 @@ tr:hover { background: #f8fafc; }
 tr.violation { background: #ffeaea; }
 tr.violation td { color: #e53e3e; font-weight: bold; }
 th[data-sort="startNoEarlier"], th[data-sort="finishNoLater"], th[data-sort="actualStart"], th[data-sort="actualEnd"],
-td:nth-child(6), td:nth-child(7), td:nth-child(8), td:nth-child(9) { white-space: nowrap; width: 1%; }
+td:nth-child(6) { white-space: nowrap; width: 1%; }
 
 /* Цветовая индикация в таблице задач */
 .text-epic { color: var(--color-epic); font-weight: 600; }
